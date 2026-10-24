@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="BUCC 2.0.0：课表、作业、健康云、校园空间、校园卡与网费服务，一处安排校园日常。支持 macOS、Windows、Android、iOS 和鸿蒙。">
+  <meta name="description" content="BUCC 2.0.0：课表、作业、健康云、校园空间、iHome 接诉即办与校园财务服务，一处安排校园日常。支持 macOS、Windows、Android、iOS 和鸿蒙。">
   <meta property="og:title" content="BUCC 2.0.0 · 校园日常，一处就绪">
   <meta property="og:description" content="从今日课表到校园服务，把校园生活的常用入口放在一起。">
   <meta property="og:image" content="/og-image.png">
   <meta name="apple-mobile-web-app-title" content="BUCC">
-  <meta name="theme-color" content="#fafbff">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafbff">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#101827">
   <title>BUCC · 校园日常，一处就绪</title>
   <link rel="icon" href="/favicon.png" type="image/png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -18,7 +19,6 @@
   <a class="skip-link" href="#main">跳到主要内容</a>
   <header class="header wrap">
     <a class="brand" href="#top" aria-label="BUCC 首页">BUCC</a>
-    <nav aria-label="页面导航"><a href="#experience">校园日常</a><a href="#features">功能一览</a><a href="#downloads">下载</a></nav>
   </header>
   <main id="main">
     <section id="top" class="hero wrap" aria-labelledby="headline">
@@ -40,18 +40,9 @@
         <p class="download-feedback" data-download-feedback aria-live="polite"></p>
         <div class="hero-meta"><span>五端同步</span><i></i><span>校园服务聚合</span><i></i><span>轻松开始</span></div>
       </div>
-      <div class="hero-art" aria-label="BUCC 把校园日程与服务连接在一起" role="img">
+      <div class="hero-art" aria-label="BUCC 飞机标志位于蓝色光晕中心" role="img">
         <div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div>
         <div class="icon-glow"></div><div class="icon-core"></div>
-        <div class="schedule-card float-card">
-          <div class="mock-topline"><span>周一 · 今天</span><span class="mock-live"><b></b> 进行中</span></div>
-          <div class="mock-date">08<span>:</span>30</div>
-          <div class="mock-course"><span class="course-line"></span><div><strong>高等数学</strong><small>教学楼 · 3F 302</small></div><span class="course-arrow">↗</span></div>
-          <div class="mock-course muted-course"><span class="course-line"></span><div><strong>大学英语</strong><small>10:20 · 综合楼</small></div></div>
-          <div class="mock-bottom"><span>今日课程</span><strong>4 节</strong></div>
-        </div>
-        <div class="campus-chip chip-task"><span>✓</span> 作业已完成</div>
-        <div class="campus-chip chip-cloud"><span>☁</span> 校园服务已连接</div>
         <img class="aircraft" src="/aircraft.png" alt="" width="1024" height="1024" fetchpriority="high">
         <span class="art-spark spark-one">✳</span><span class="art-spark spark-two">✦</span>
       </div>
@@ -65,10 +56,10 @@
       <div class="wrap experience-inner">
         <div class="section-heading reveal"><span class="eyebrow">YOUR CAMPUS, IN FLOW</span><h2 id="experience-title">把琐碎入口，<br>变成顺手日常。</h2><p>BUCC 将分散在不同平台的校园信息放进一个清晰的工作台。少一些来回切换，多一点时间留给真正重要的事。</p></div>
         <div class="story-grid">
-          <article class="story-card story-schedule reveal"><span class="story-index">01 / 每日安排</span><div class="story-visual calendar-visual"><div class="mini-calendar"><span>周一</span><strong>09</strong><small>今日</small></div><div class="calendar-lines"><i></i><i></i><i></i><i></i></div><div class="calendar-event"><b>10:20</b><span>课堂与下一项安排</span></div></div><h3>从今天开始，安排一目了然</h3><p>课表、待办和提醒集中呈现；作业中心汇总多来源任务、截止时间与详情，也能标记完成、撤销并查看过期分组。</p></article>
-          <article class="story-card story-campus reveal"><span class="story-index">02 / 校园空间</span><div class="story-visual map-visual"><div class="map-grid"></div><span class="map-path"></span><span class="map-pin pin-a">⌂</span><span class="map-pin pin-b">阅</span><span class="map-pin pin-c">研</span><div class="map-label">找到适合此刻的空间</div></div><h3>学习空间，不必到处找</h3><p>查询空教室，预约图书馆空间与研讨室，也可进入 iHome 等校园服务，让学习安排更连贯。</p></article>
+          <article class="story-card story-schedule reveal"><span class="story-index">01 / 每日安排</span><div class="story-visual illustration-visual homework-visual"><img src="/homework-study.webp" alt="书桌上的作业本、书本和学习用品的校园学习插画" width="1600" height="592" loading="lazy"></div><h3>从今天开始，安排一目了然</h3><p>课表、待办和提醒集中呈现；作业中心汇总多来源任务、截止时间与详情，也能标记完成、撤销并查看过期分组。</p></article>
+          <article class="story-card story-campus reveal"><span class="story-index">02 / 校园空间</span><div class="story-visual illustration-visual campus-visual"><img src="/campus-spaces.webp" alt="空教室、图书馆学习区和研讨室的校园空间插画" width="1600" height="592" loading="lazy"></div><h3>校园空间，一眼看清</h3><p>查询空教室，预约图书馆座位与研讨室；从个人自习到小组讨论，快速找到合适的学习空间。</p></article>
           <article class="story-card story-services reveal"><span class="story-index">03 / 校园服务</span><div class="story-visual wallet-visual"><div class="wallet-card"><div class="wallet-brand">BUCC <span>校园卡</span></div><small>当前余额</small><strong>校园生活服务</strong><div class="wallet-wave"></div><span class="wallet-orbit"></span></div><div class="service-bubble bubble-card">校园卡</div><div class="service-bubble bubble-net">网络服务</div></div><h3>常用校园事务，一处直达</h3><p>查看校园卡余额并进入充值流程，查询网费余额与流量；通过 WebVPN 或直连访问支持的校园服务。</p></article>
-          <article class="story-card story-health reveal"><span class="story-index">04 / 学习与健康</span><div class="story-visual pulse-visual"><div class="pulse-ring ring-a"></div><div class="pulse-ring ring-b"></div><div class="pulse-center">BUCC</div><span class="pulse-dot dot-a"></span><span class="pulse-dot dot-b"></span><span class="pulse-dot dot-c"></span><div class="pulse-caption">校园信息 · 随手可查</div></div><h3>让重要信息更容易找到</h3><p>查询 TD 健康云次数并在支持的模式下打卡，使用阳光打卡与课堂纸飞机。PatPat 服务目前暂停，恢复情况以服务方为准。</p></article>
+          <article class="story-card story-health reveal"><span class="story-index">04 / 学习与健康</span><div class="story-visual pulse-visual"><div class="pulse-ring ring-a"></div><div class="pulse-ring ring-b"></div><div class="pulse-center">BUCC</div><span class="pulse-dot dot-a"></span><span class="pulse-dot dot-b"></span><span class="pulse-dot dot-c"></span><div class="pulse-caption">校园信息 · 随手可查</div></div><h3>让重要信息更容易找到</h3><p>查询 TD 健康云次数，并在直连模式下打卡；还可使用阳光打卡、课堂纸飞机。PatPat 在直连模式下可用，WebVPN 模式下暂不可用。</p></article>
         </div>
       </div>
     </section>
@@ -79,8 +70,8 @@
         <div id="features" class="features">
           <article class="feature-card reveal"><div class="feature-icon blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 3H5v18h14V3h-3M9 2h6v4H9zM8 11h8M8 15h5"/></svg></div><span class="feature-number">01</span><h3>工作台与作业</h3><p>课表、待办、提醒和作业进度组合在一起，支持查看详情与管理完成状态。</p><span class="feature-tag">PLAN YOUR DAY</span></article>
           <article class="feature-card reveal"><div class="feature-icon violet" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5c-3-2-6-2-10-1v15c4-1 7-1 10 1 3-2 6-2 10-1V4c-4-1-7-1-10 1zm0 0v15"/></svg></div><span class="feature-number">02</span><h3>学习与健康</h3><p>TD 健康云、阳光打卡与课堂纸飞机，让学习相关入口更集中。</p><span class="feature-tag">LEARN &amp; GROW</span></article>
-          <article class="feature-card reveal"><div class="feature-icon cyan" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="feature-number">03</span><h3>空间与校园事务</h3><p>iHome、空教室、图书馆空间、研讨室、校园卡与网费服务。</p><span class="feature-tag">CAMPUS SERVICES</span></article>
-          <article class="feature-card reveal"><div class="feature-icon blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12h16M12 4v16M5 5l14 14M19 5 5 19"/></svg></div><span class="feature-number">04</span><h3>连接与个性化</h3><p>WebVPN / 直连双模式、离线缓存、多账号、本地设置、主题与头像。</p><span class="feature-tag">YOUR WAY TO CONNECT</span></article>
+          <article class="feature-card reveal"><div class="feature-icon cyan" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="feature-number">03</span><h3>校园空间</h3><p>查询空教室，预约图书馆座位和研讨室，让自习、阅读与小组讨论更好安排。</p><span class="feature-tag">CAMPUS SPACES</span></article>
+          <article class="feature-card reveal"><div class="feature-icon blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12h16M12 4v16M5 5l14 14M19 5 5 19"/></svg></div><span class="feature-number">04</span><h3>校园服务与反馈</h3><p>iHome 接诉即办与校园公告；查询校园卡、网费，使用 WebVPN 或直连，并管理离线缓存、账号和个性化设置。</p><span class="feature-tag">SERVICES &amp; FEEDBACK</span></article>
         </div>
       </div>
     </section>

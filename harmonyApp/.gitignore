@@ -1,0 +1,10 @@
+oh_modules/
+.hvigor/
+.cxx/
+build/
+entry/libs/
+entry/src/main/resources/rawfile/composeResources/
+local.properties
+*.p12
+*.cer
+*.p7b

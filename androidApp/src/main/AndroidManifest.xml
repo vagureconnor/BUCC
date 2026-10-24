@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
+        android:enableOnBackInvokedCallback="false"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <receiver android:name="app.bucc.widget.ScheduleWidgetProvider"
+            android:exported="false" android:label="BUCC 周课表">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/schedule_widget_info" />
+        </receiver>
+        <receiver android:name="app.bucc.widget.TodayScheduleWidgetProvider" android:exported="false" android:label="BUCC 今日课程">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/schedule_today_widget_info" />
+        </receiver>
+        <receiver android:name="app.bucc.widget.UpcomingScheduleWidgetProvider" android:exported="false" android:label="BUCC 近日课程">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/schedule_upcoming_widget_info" />
+        </receiver>
+        <receiver android:name="app.bucc.notifications.BuccNotificationReceiver" android:exported="false" />
+        <receiver android:name="app.bucc.notifications.BuccNotificationBootReceiver" android:exported="true" android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <activity android:name="app.bucc.widget.ScheduleWidgetActivity" android:exported="false" />
+        <activity
+            android:exported="true"
+            android:name="app.bucc.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

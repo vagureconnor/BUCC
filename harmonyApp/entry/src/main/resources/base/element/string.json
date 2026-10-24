@@ -1,0 +1,24 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "BUCC 校园服务"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "BUCC 校园服务"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "BUCC"
+    },
+    {
+      "name": "calendar_read_reason",
+      "value": "读取 BUCC 日历以避免重复导入课程"
+    },
+    {
+      "name": "calendar_write_reason",
+      "value": "将您确认的课程保存到 BUCC 日历"
+    }
+  ]
+}

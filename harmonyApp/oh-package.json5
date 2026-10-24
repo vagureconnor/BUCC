@@ -1,0 +1,8 @@
+{
+  "name": "bucc-harmony",
+  "version": "2.0.0",
+  "dependencies": {
+    "@cpf-kmp-cmp/compose": "1.9.2-1.0.0"
+  },
+  "modelVersion": "5.0.0"
+}

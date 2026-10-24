@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="BUCC 2.0.0：课表、待办、作业、健康云与校园服务一处查看，支持 macOS、Windows、Android、iOS 和鸿蒙。">
+  <meta property="og:title" content="BUCC 2.0.0 · 校园日常，一处就绪">
+  <meta property="og:description" content="把课表、作业进度、校园卡与校园服务收在一个熟悉的地方。">
+  <meta property="og:image" content="/og-image.png">
+  <meta name="apple-mobile-web-app-title" content="BUCC">
+  <meta name="theme-color" content="#fafbff">
+  <title>BUCC · 校园日常，一处就绪</title>
+  <link rel="icon" href="/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <header class="header wrap">
+    <a class="brand" href="#" aria-label="BUCC 首页">BUCC</a>
+  </header>
+  <main id="main">
+    <section class="hero wrap" aria-labelledby="headline">
+      <div class="hero-copy">
+        <h1 id="headline">校园日常，<br class="mobile-break">一处就绪。</h1>
+        <p>BUCC 2.0.0，把课表、待办、作业进度和校园服务放在一起，让校园日常更顺手。</p>
+        <div class="actions"><a class="button primary" href="#downloads">选择你的平台 <span aria-hidden="true">→</span></a><a class="button secondary" href="#features">了解功能</a></div>
+      </div>
+      <div class="icon-scene" role="img" aria-label="BUCC 原版飞机标志，周围为自然扩散的蓝色渐变">
+        <div class="icon-glow"></div>
+        <div class="icon-core"></div>
+        <img class="aircraft" src="/aircraft.png" alt="" width="1024" height="1024" fetchpriority="high">
+      </div>
+    </section>
+    <section id="features" class="features wrap" aria-label="主要功能">
+      <article><div class="feature-icon blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 3H5v18h14V3h-3M9 2h6v4H9zM8 11h8M8 15h5"/></svg></div><div><h2>工作台与作业</h2><p>课表、待办和提醒集中查看；作业中心汇总多来源任务，查看截止时间与详情，支持标记完成、撤销和过期分组。</p></div></article>
+      <article><div class="feature-icon violet" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5c-3-2-6-2-10-1v15c4-1 7-1 10 1 3-2 6-2 10-1V4c-4-1-7-1-10 1zm0 0v15"/></svg></div><div><h2>学习与健康</h2><p>TD 健康云查询次数、直连打卡，另有阳光打卡和课堂纸飞机。PatPat 服务当前暂停，恢复情况以服务方为准。</p></div></article>
+      <article><div class="feature-icon cyan" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><div><h2>校园空间与服务</h2><p>iHome、空教室查询、图书馆空间预约和研讨室预约；查看校园卡余额与充值、网费余额和流量并进入官方充值流程。</p></div></article>
+      <article><div class="feature-icon blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12h16M12 4v16M5 5l14 14M19 5 5 19"/></svg></div><div><h2>连接与个性化</h2><p>WebVPN/直连双模式、离线缓存、本地化设置、主题、头像和 Accoding、PatPat、TD 多账号；支持 macOS、Windows、Android、iOS 与鸿蒙。</p></div></article>
+    </section>
+    <section id="downloads" class="downloads" aria-labelledby="download-title">
+      <div class="wrap">
+        <h2 id="download-title">在你的设备上使用 BUCC</h2>
+        <p class="section-intro">BUCC 2.0.0 支持 macOS、Windows、Android、iOS 与鸿蒙。各平台构建、签名和验收完成后，这里会提供安装文件、SHA-256、安装说明与版本更新说明。</p>
+        <div class="platforms" data-release-downloads>
+          <div class="platform" data-platform="macos"><span class="platform-name">macOS</span></div>
+          <div class="platform" data-platform="android"><span class="platform-name">Android</span></div>
+          <div class="platform" data-platform="windows"><span class="platform-name">Windows</span></div>
+          <div class="platform" data-platform="ios"><span class="platform-name">iOS</span></div>
+          <div class="platform" data-platform="harmony"><span class="platform-name">HarmonyOS</span></div>
+        </div>
+        <div class="release-details">
+          <details id="macos-detail"><summary>macOS 下载说明</summary><p>Apple Silicon 安装包：构建与验收完成后提供 DMG。安装时请按 macOS 的安全提示操作，并核对下载页提供的 SHA-256。</p></details>
+          <details id="android-detail"><summary>Android 下载说明</summary><p>Android APK：正式签名构建与设备验收完成后提供下载；发布页会列出 SHA-256 和安装说明。</p></details>
+          <details id="windows-detail"><summary>Windows 下载说明</summary><p>Windows x64 安装包：由 Windows 构建环境生成并验收后提供 MSI/EXE 下载及 SHA-256。</p></details>
+          <details id="ios-detail"><summary>iOS 下载说明</summary><p>BUCC 2.0.0 未签名 IPA：待本次构建完成后提供。文件大小、SHA-256 和下载链接将与实际产物一并公布。</p><p>此文件不含设备描述文件，不能直接安装；安装前需要自行签名。本机签名验收包不会上传，也不通过 App Store 或 TestFlight 分发。</p></details>
+          <details id="harmony-detail"><summary>HarmonyOS 下载说明</summary><p>鸿蒙正式签名 HAP/APP：完成正式签名和安装验收后提供下载，并注明适配范围与 SHA-256。</p></details>
+        </div>
+        <p class="download-footnote">文件会分段下载、逐段校验并合并；下载期间请保持此页面打开。浏览器支持“另存为”时可直接写入磁盘。</p>
+        <aside class="connection-note"><h3>2.0.0 更新与使用说明</h3><p>此版本统一五端版本信息和应用图标，并完善作业完成状态、校园卡与网费官方支付流程说明。安装前请查看平台说明与下载文件的 SHA-256。BUCC 提供 WebVPN 与直连两种连接方式。网费登录在支持的会话接续场景中可免登录验证码；官方充值表单仍可能要求独立图形验证码。直连模式下 TD 支持健康云次数查询与打卡，WebVPN 下支持次数查询。服务可用性以当前网络和官方系统为准。</p></aside>
+      </div>
+    </section>
+  </main>
+  <footer class="footer wrap"><span>BUCC · 独立校园客户端 · 2.0.0</span><a href="/privacy.html">隐私说明</a><span>非学校官方应用</span></footer>
+  <script src="/main.js" defer></script>
+  <script src="/downloads.js" defer></script>
+</body>
+</html>

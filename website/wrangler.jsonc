@@ -1,0 +1,6 @@
+{
+  "name": "bucc",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-10-19",
+  "kv_namespaces": [{"binding": "BUCC_RELEASES", "id": "c29664527eb6423e8b893542042182bc"}]
+}

@@ -1,0 +1,5 @@
+{
+  "name": "libentry.so",
+  "version": "2.0.0",
+  "types": "./Index.d.ts"
+}

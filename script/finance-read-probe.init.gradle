@@ -1,0 +1,11 @@
+gradle.projectsEvaluated {
+ def sharedProject = gradle.rootProject.findProject(':shared')
+ if (sharedProject == null) return
+ sharedProject.tasks.register('financeReadProbe', JavaExec) {
+  dependsOn sharedProject.tasks.named('jvmTestClasses')
+  classpath = sharedProject.tasks.named('jvmTest').get().classpath
+  mainClass = 'app.bucc.api.FinanceReadProbe'
+  workingDir gradle.rootProject.projectDir
+  args gradle.startParameter.projectProperties['financeMode'] ?: 'DIRECT'
+ }
+}

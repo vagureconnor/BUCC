@@ -1,0 +1,10 @@
+gradle.projectsEvaluated {
+    def project = gradle.rootProject.findProject(':shared')
+    if (project == null) return
+    project.tasks.register('gatewayReadProbe', JavaExec) {
+        dependsOn project.tasks.named('jvmTestClasses')
+        classpath = project.tasks.named('jvmTest').get().classpath
+        mainClass = 'app.bucc.api.GatewaySavedSessionProbe'
+        workingDir gradle.rootProject.projectDir
+    }
+}

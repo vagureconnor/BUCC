@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AutoTD</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到主要内容</a>
+    <header class="topbar">
+      <div class="brand">
+        <p class="eyebrow">北航体育锻炼</p>
+        <h1>AutoTD</h1>
+      </div>
+      <nav class="tabs" aria-label="主导航">
+        <button class="tab-button active" type="button" data-page="overview">概览</button>
+        <button class="tab-button" type="button" data-page="help">使用说明</button>
+        <button class="tab-button" type="button" data-page="settings" aria-label="打开设置">设置</button>
+      </nav>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <div id="notice" class="notice" role="status" aria-live="polite">正在读取本地状态</div>
+
+      <section id="overview" class="page">
+        <div class="welcome">
+          <div>
+            <p class="eyebrow">固定账号</p>
+            <h2 id="account-student-id">未设置学号</h2>
+            <p id="window-status" class="muted">正在读取打卡时段</p>
+          </div>
+          <div class="checkin-action">
+            <div class="checkin-buttons">
+              <button id="checkin-button" class="primary-button" type="button">打卡</button>
+              <button id="checkin-three-button" class="primary-button" type="button">打卡三次</button>
+            </div>
+            <p id="checkin-timer" class="checkin-timer" role="status" aria-live="polite" hidden></p>
+          </div>
+        </div>
+
+        <section class="stats-grid" aria-label="今日打卡统计">
+          <article class="stat-card featured">
+            <p class="eyebrow">总有效次数</p>
+            <div class="ring-layout">
+              <div id="progress-ring" class="progress-ring total-count-ring" role="progressbar" aria-label="总有效次数" aria-valuemin="0" aria-valuemax="32" aria-valuenow="0">
+                <div class="ring-center"><strong id="total-count-value">--</strong><span>次</span></div>
+              </div>
+              <div class="ring-copy">
+                <strong>本学期每日最多 3 次累计</strong>
+                <p id="count-updated" class="muted">查询累计次数</p>
+                <button id="refresh-count-button" class="secondary-button" type="button">刷新次数</button>
+              </div>
+            </div>
+          </article>
+          <article class="stat-card daily-count-card">
+            <p class="eyebrow">今日已打卡次数</p>
+            <h3 id="daily-count-value">--</h3>
+          </article>
+        </section>
+
+        <section class="panel status-panel">
+          <div>
+            <p class="eyebrow">当前账号</p>
+            <h2>打卡进度</h2>
+          </div>
+          <dl class="status-grid">
+            <div><dt>打卡时段</dt><dd id="check-windows">-</dd></div>
+            <div><dt>后台状态</dt><dd id="background-state">-</dd></div>
+            <div><dt>上次刷新</dt><dd id="refreshed-at">-</dd></div>
+          </dl>
+        </section>
+      </section>
+
+      <section id="help" class="page" hidden>
+        <article class="panel help-panel">
+          <p class="eyebrow">使用说明</p>
+          <h2>完成一次打卡</h2>
+          <ol class="steps">
+            <li>连接北航校园网直连。次数查询和官方页面均需要校园网环境。</li>
+            <li>在有效时段内点击“打卡”或“打卡三次”，应用会依次发送对应次数的入口和出口请求，保留入口后等待与出口后冷却，并在之后刷新健康云次数。</li>
+            <li>不在有效时段时，打卡会失败，后台也会关闭。</li>
+            <li>今日次数按健康云后台当天标为有效的出口记录统计。请求结果不会触发自动重发。</li>
+          </ol>
+          <div class="time-card">
+            <h3>每日有效时段（北京时间）</h3>
+            <ul id="help-windows"></ul>
+          </div>
+          <p class="muted">官方次数查询与打卡入口：<a href="http://10.212.28.38/index.php" target="_blank" rel="noreferrer">北航健康云</a></p>
+        </article>
+      </section>
+
+      <section id="settings" class="page" hidden>
+        <form id="account-settings-form" class="panel settings-panel">
+          <p class="eyebrow">账号设置</p>
+          <h2>账号与健康云登录</h2>
+          <label for="student-id-input">学号</label>
+          <input id="student-id-input" name="student_id" type="text" inputmode="numeric" autocomplete="off" pattern="[0-9]+" required />
+          <label for="campus-input">校区</label>
+          <select id="campus-input" name="campus" required>
+            <option value="学院路">学院路</option>
+            <option value="沙河">沙河</option>
+          </select>
+          <label for="healthcloud-password-input">健康云登录密码</label>
+          <input id="healthcloud-password-input" name="healthcloud_password" type="password" autocomplete="new-password" placeholder="输入或更新密码" />
+          <p id="healthcloud-password-status" class="muted">密码保存在 AutoTD 本地数据中；登录账号使用上方学号。</p>
+          <p class="muted">更换学号会清除旧账号的本地次数缓存和当日进度。</p>
+          <button id="save-account-button" class="primary-button settings-save-button" type="submit">保存设置</button>
+        </form>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

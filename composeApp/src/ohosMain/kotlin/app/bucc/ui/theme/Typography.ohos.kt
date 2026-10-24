@@ -1,0 +1,8 @@
+package app.bucc.ui.theme
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.font.FontFamily
+
+@Composable actual fun getAppFontFamily(): FontFamily = FontFamily.Default
+
+@Composable actual fun PreloadFonts() = Unit

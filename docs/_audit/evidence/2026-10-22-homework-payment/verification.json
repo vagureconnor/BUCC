@@ -1,0 +1,62 @@
+{
+  "date": "2026-10-22",
+  "live_read_only": {
+    "judge": {
+      "course_count": 3,
+      "site_rows_per_course": [
+        14,
+        13,
+        4
+      ],
+      "site_rows": 31,
+      "adapter_rows": 31,
+      "same_composite_ids": true,
+      "failed_courses": 0,
+      "current_semester_rows": 4,
+      "all_dates_parsed": true
+    },
+    "accoding": {
+      "pages_read": 10,
+      "current_semester_non_tutorial_site_rows": 3,
+      "adapter_rows": 3,
+      "same_ids": true
+    },
+    "login": {
+      "new_mac_app_reached_workbench": true,
+      "subsequent_get_only_restore": true,
+      "subsequent_credential_posts": 0
+    }
+  },
+  "automated": {
+    "shared": {
+      "total": 518,
+      "skipped": 13,
+      "failed": 0
+    },
+    "compose": {
+      "total": 386,
+      "skipped": 2,
+      "failed": 0
+    },
+    "mac_webkit_runtime": {
+      "passed": 6,
+      "skipped": 0,
+      "toolbar_widths_px": [
+        320,
+        540
+      ]
+    }
+  },
+  "builds": {
+    "android_debug": true,
+    "ios_kotlin_simulator_arm64": true,
+    "xcode_ios_simulator": true,
+    "mac_distributable": true
+  },
+  "limits": [
+    "No real payment/order/booking/upload performed",
+    "No iOS or Android real-device payment testing",
+    "Concurrent browser or second process can change gateway-selected Judge course; live acceptance was serialized",
+    "An additional read-only check encountered transient upstream timeouts and reported partial failure explicitly"
+  ]
+}

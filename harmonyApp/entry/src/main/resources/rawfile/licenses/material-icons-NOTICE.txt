@@ -1,0 +1,5 @@
+Material Icons common sources 1.7.3
+Copyright The Android Open Source Project and respective source-file copyright holders.
+Licensed under Apache License 2.0 (material-icons-Apache-2.0.txt).
+Source artifacts: org.jetbrains.compose.material:material-icons-core:1.7.3:sources and material-icons-extended:1.7.3:sources, from Maven Central.
+The Harmony build compiles the 82 icon/helper files used by BUCC against its OHOS Compose UI; source copyright headers are retained unchanged. No application code from the unlicensed integration reference project is included.

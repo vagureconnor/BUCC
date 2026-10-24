@@ -1,0 +1,9 @@
+{
+  "name": "entry",
+  "version": "2.0.0",
+  "dependencies": {
+    "@cpf-kmp-cmp/compose": "1.9.2-1.0.0",
+    "libentry.so": "file:./src/main/cpp/types/libentry"
+  },
+  "modelVersion": "5.0.0"
+}

@@ -1,0 +1,12 @@
+gradle.projectsEvaluated {
+    def project = gradle.rootProject.findProject(':shared')
+    if (project == null) return
+    project.tasks.register('campusCardReadProbe', JavaExec) {
+        dependsOn project.tasks.named('jvmTestClasses')
+        classpath = project.tasks.named('jvmTest').get().classpath
+        mainClass = 'app.bucc.api.CampusCardReadProbe'
+        workingDir gradle.rootProject.projectDir
+        args gradle.startParameter.projectProperties['probeMode'] ?: 'WEBVPN'
+        if (gradle.startParameter.projectProperties['directCardApiProbe'] == 'true') args '--direct-api'
+    }
+}

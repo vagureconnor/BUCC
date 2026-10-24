@@ -1,0 +1,14 @@
+gradle.projectsEvaluated {
+    def project = gradle.rootProject.findProject(':shared')
+    if (project == null) return
+    project.tasks.register('homeworkReadProbe', JavaExec) {
+        dependsOn project.tasks.named('jvmTestClasses')
+        classpath = project.tasks.named('jvmTest').get().classpath
+        mainClass = 'app.bucc.api.HomeworkSavedSessionProbe'
+        workingDir gradle.rootProject.projectDir
+        if (gradle.startParameter.projectProperties['restoreHomeworkProbeLogin'] == 'true') args '--restore-login'
+        if (gradle.startParameter.projectProperties['homeworkProbeProductionTransport'] == 'true') args '--production-transport'
+        if (gradle.startParameter.projectProperties['homeworkProbeFinanceOnly'] == 'true') args '--finance-only'
+        if (gradle.startParameter.projectProperties['homeworkProbeJudgeOnly'] == 'true') args '--judge-only'
+    }
+}

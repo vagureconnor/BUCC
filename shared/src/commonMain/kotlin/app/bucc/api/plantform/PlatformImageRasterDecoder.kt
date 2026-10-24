@@ -1,0 +1,11 @@
+package app.bucc.api.plantform
+
+internal data class LocalCgyyImageData(
+    val width: Int,
+    val height: Int,
+    val argb: IntArray,
+)
+
+internal expect object PlatformImageRasterDecoder {
+  fun decode(input: ByteArray): LocalCgyyImageData
+}

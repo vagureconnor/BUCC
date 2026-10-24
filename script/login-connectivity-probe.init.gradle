@@ -1,0 +1,15 @@
+gradle.projectsEvaluated {
+    def project = gradle.rootProject.findProject(':shared')
+    if (project == null) return
+    project.tasks.register('loginConnectivityProbe', JavaExec) {
+        dependsOn project.tasks.named('jvmTestClasses')
+        classpath = project.tasks.named('jvmTest').get().classpath
+        mainClass = 'app.bucc.api.LoginConnectivityProbe'
+        workingDir gradle.rootProject.projectDir
+        if (gradle.startParameter.projectProperties['probeMode']) args '--mode=' + gradle.startParameter.projectProperties['probeMode']
+        if (gradle.startParameter.projectProperties['transportOnlyProbe'] == 'true') args '--transport-only'
+        if (gradle.startParameter.projectProperties['directLoginProbe'] == 'true') args '--direct-transport'
+        if (gradle.startParameter.projectProperties['restoreLoginProbe'] == 'true') args '--restore-login'
+        if (gradle.startParameter.projectProperties['cleanLoginProbe'] == 'true') args '--clean'
+    }
+}

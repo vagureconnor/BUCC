@@ -1,4 +1,4 @@
-import { cp, mkdir, readdir } from 'node:fs/promises';
+import { cp, mkdir, readdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -12,4 +12,7 @@ for (const folder of ['public', 'src']) {
   }
 }
 await cp(path.join(root, 'src', 'downloads.js'), path.join(dist, 'downloads.js'));
+await writeFile(path.join(dist, 'download-manifest.js'),
+  'window.BUCC_RELEASE_MANIFEST = {"version":1,"files":[]};\n',
+);
 console.log('Built public website assets in website/dist');

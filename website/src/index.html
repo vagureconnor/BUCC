@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="BUCC 2.0.0：课表、待办、作业、健康云与校园服务一处查看，支持 macOS、Windows、Android、iOS 和鸿蒙。">
+  <meta name="description" content="BUCC 2.0.0：课表、作业、健康云、校园空间、校园卡与网费服务，一处安排校园日常。支持 macOS、Windows、Android、iOS 和鸿蒙。">
   <meta property="og:title" content="BUCC 2.0.0 · 校园日常，一处就绪">
-  <meta property="og:description" content="把课表、作业进度、校园卡与校园服务收在一个熟悉的地方。">
+  <meta property="og:description" content="从今日课表到校园服务，把校园生活的常用入口放在一起。">
   <meta property="og:image" content="/og-image.png">
   <meta name="apple-mobile-web-app-title" content="BUCC">
   <meta name="theme-color" content="#fafbff">
@@ -17,52 +17,93 @@
 <body>
   <a class="skip-link" href="#main">跳到主要内容</a>
   <header class="header wrap">
-    <a class="brand" href="#" aria-label="BUCC 首页">BUCC</a>
+    <a class="brand" href="#top" aria-label="BUCC 首页">BUCC</a>
+    <nav aria-label="页面导航"><a href="#experience">校园日常</a><a href="#features">功能一览</a><a href="#downloads">下载</a></nav>
   </header>
   <main id="main">
-    <section class="hero wrap" aria-labelledby="headline">
+    <section id="top" class="hero wrap" aria-labelledby="headline">
       <div class="hero-copy">
+        <span class="eyebrow"><span class="eyebrow-dot"></span>为校园生活而做 · BUCC 2.0.0</span>
         <h1 id="headline">校园日常，<br class="mobile-break">一处就绪。</h1>
-        <p>BUCC 2.0.0，把课表、待办、作业进度和校园服务放在一起，让校园日常更顺手。</p>
-        <div class="actions"><a class="button primary" href="#downloads">选择你的平台 <span aria-hidden="true">→</span></a><a class="button secondary" href="#features">了解功能</a></div>
+        <p>从今天的课表和待办，到校园空间、校园卡与网络服务。常用的校园入口，打开 BUCC 就能找到。</p>
+        <div class="download-cta" data-download-cta>
+          <button class="button primary main-download" type="button" data-main-download disabled>正在检查设备… <span aria-hidden="true">↓</span></button>
+          <div class="platform-picker">
+            <button class="button picker-toggle" type="button" data-menu-toggle aria-expanded="false" aria-haspopup="true" aria-controls="platform-menu" aria-label="选择其他系统下载">⌄</button>
+            <div class="platform-menu" id="platform-menu" data-platform-menu hidden role="menu" aria-label="选择其他系统">
+              <p>选择其他系统</p>
+              <div data-platform-options></div>
+            </div>
+          </div>
+          <span class="ios-note" data-ios-note hidden>需要签名后才能使用</span>
+        </div>
+        <p class="download-feedback" data-download-feedback aria-live="polite"></p>
+        <div class="hero-meta"><span>五端同步</span><i></i><span>校园服务聚合</span><i></i><span>轻松开始</span></div>
       </div>
-      <div class="icon-scene" role="img" aria-label="BUCC 原版飞机标志，周围为自然扩散的蓝色渐变">
-        <div class="icon-glow"></div>
-        <div class="icon-core"></div>
+      <div class="hero-art" aria-label="BUCC 把校园日程与服务连接在一起" role="img">
+        <div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div>
+        <div class="icon-glow"></div><div class="icon-core"></div>
+        <div class="schedule-card float-card">
+          <div class="mock-topline"><span>周一 · 今天</span><span class="mock-live"><b></b> 进行中</span></div>
+          <div class="mock-date">08<span>:</span>30</div>
+          <div class="mock-course"><span class="course-line"></span><div><strong>高等数学</strong><small>教学楼 · 3F 302</small></div><span class="course-arrow">↗</span></div>
+          <div class="mock-course muted-course"><span class="course-line"></span><div><strong>大学英语</strong><small>10:20 · 综合楼</small></div></div>
+          <div class="mock-bottom"><span>今日课程</span><strong>4 节</strong></div>
+        </div>
+        <div class="campus-chip chip-task"><span>✓</span> 作业已完成</div>
+        <div class="campus-chip chip-cloud"><span>☁</span> 校园服务已连接</div>
         <img class="aircraft" src="/aircraft.png" alt="" width="1024" height="1024" fetchpriority="high">
+        <span class="art-spark spark-one">✳</span><span class="art-spark spark-two">✦</span>
       </div>
     </section>
-    <section id="features" class="features wrap" aria-label="主要功能">
-      <article><div class="feature-icon blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 3H5v18h14V3h-3M9 2h6v4H9zM8 11h8M8 15h5"/></svg></div><div><h2>工作台与作业</h2><p>课表、待办和提醒集中查看；作业中心汇总多来源任务，查看截止时间与详情，支持标记完成、撤销和过期分组。</p></div></article>
-      <article><div class="feature-icon violet" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5c-3-2-6-2-10-1v15c4-1 7-1 10 1 3-2 6-2 10-1V4c-4-1-7-1-10 1zm0 0v15"/></svg></div><div><h2>学习与健康</h2><p>TD 健康云查询次数、直连打卡，另有阳光打卡和课堂纸飞机。PatPat 服务当前暂停，恢复情况以服务方为准。</p></div></article>
-      <article><div class="feature-icon cyan" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><div><h2>校园空间与服务</h2><p>iHome、空教室查询、图书馆空间预约和研讨室预约；查看校园卡余额与充值、网费余额和流量并进入官方充值流程。</p></div></article>
-      <article><div class="feature-icon blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12h16M12 4v16M5 5l14 14M19 5 5 19"/></svg></div><div><h2>连接与个性化</h2><p>WebVPN/直连双模式、离线缓存、本地化设置、主题、头像和 Accoding、PatPat、TD 多账号；支持 macOS、Windows、Android、iOS 与鸿蒙。</p></div></article>
+
+    <section class="intro-strip wrap reveal" aria-label="BUCC 的使用方式">
+      <p>一天的校园节奏</p><div><span>看课表</span><b>→</b><span>理待办</span><b>→</b><span>找空间</span><b>→</b><span>办校园事</span></div>
     </section>
-    <section id="downloads" class="downloads" aria-labelledby="download-title">
+
+    <section id="experience" class="experience" aria-labelledby="experience-title">
+      <div class="wrap experience-inner">
+        <div class="section-heading reveal"><span class="eyebrow">YOUR CAMPUS, IN FLOW</span><h2 id="experience-title">把琐碎入口，<br>变成顺手日常。</h2><p>BUCC 将分散在不同平台的校园信息放进一个清晰的工作台。少一些来回切换，多一点时间留给真正重要的事。</p></div>
+        <div class="story-grid">
+          <article class="story-card story-schedule reveal"><span class="story-index">01 / 每日安排</span><div class="story-visual calendar-visual"><div class="mini-calendar"><span>周一</span><strong>09</strong><small>今日</small></div><div class="calendar-lines"><i></i><i></i><i></i><i></i></div><div class="calendar-event"><b>10:20</b><span>课堂与下一项安排</span></div></div><h3>从今天开始，安排一目了然</h3><p>课表、待办和提醒集中呈现；作业中心汇总多来源任务、截止时间与详情，也能标记完成、撤销并查看过期分组。</p></article>
+          <article class="story-card story-campus reveal"><span class="story-index">02 / 校园空间</span><div class="story-visual map-visual"><div class="map-grid"></div><span class="map-path"></span><span class="map-pin pin-a">⌂</span><span class="map-pin pin-b">阅</span><span class="map-pin pin-c">研</span><div class="map-label">找到适合此刻的空间</div></div><h3>学习空间，不必到处找</h3><p>查询空教室，预约图书馆空间与研讨室，也可进入 iHome 等校园服务，让学习安排更连贯。</p></article>
+          <article class="story-card story-services reveal"><span class="story-index">03 / 校园服务</span><div class="story-visual wallet-visual"><div class="wallet-card"><div class="wallet-brand">BUCC <span>校园卡</span></div><small>当前余额</small><strong>校园生活服务</strong><div class="wallet-wave"></div><span class="wallet-orbit"></span></div><div class="service-bubble bubble-card">校园卡</div><div class="service-bubble bubble-net">网络服务</div></div><h3>常用校园事务，一处直达</h3><p>查看校园卡余额并进入充值流程，查询网费余额与流量；通过 WebVPN 或直连访问支持的校园服务。</p></article>
+          <article class="story-card story-health reveal"><span class="story-index">04 / 学习与健康</span><div class="story-visual pulse-visual"><div class="pulse-ring ring-a"></div><div class="pulse-ring ring-b"></div><div class="pulse-center">BUCC</div><span class="pulse-dot dot-a"></span><span class="pulse-dot dot-b"></span><span class="pulse-dot dot-c"></span><div class="pulse-caption">校园信息 · 随手可查</div></div><h3>让重要信息更容易找到</h3><p>查询 TD 健康云次数并在支持的模式下打卡，使用阳光打卡与课堂纸飞机。PatPat 服务目前暂停，恢复情况以服务方为准。</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="feature-band" aria-labelledby="features-title">
       <div class="wrap">
-        <h2 id="download-title">在你的设备上使用 BUCC</h2>
-        <p class="section-intro">BUCC 2.0.0 支持 macOS、Windows、Android、iOS 与鸿蒙。各平台构建、签名和验收完成后，这里会提供安装文件、SHA-256、安装说明与版本更新说明。</p>
-        <div class="platforms" data-release-downloads>
-          <div class="platform" data-platform="macos"><span class="platform-name">macOS</span></div>
-          <div class="platform" data-platform="android"><span class="platform-name">Android</span></div>
-          <div class="platform" data-platform="windows"><span class="platform-name">Windows</span></div>
-          <div class="platform" data-platform="ios"><span class="platform-name">iOS</span></div>
-          <div class="platform" data-platform="harmony"><span class="platform-name">HarmonyOS</span></div>
+        <div class="section-heading section-heading-center reveal"><span class="eyebrow">MADE FOR YOUR ROUTINE</span><h2 id="features-title">一套工具，适配校园生活的不同片段</h2><p>从每天都会打开的工作台，到按需使用的校园服务，信息按场景清楚收纳。</p></div>
+        <div id="features" class="features">
+          <article class="feature-card reveal"><div class="feature-icon blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 3H5v18h14V3h-3M9 2h6v4H9zM8 11h8M8 15h5"/></svg></div><span class="feature-number">01</span><h3>工作台与作业</h3><p>课表、待办、提醒和作业进度组合在一起，支持查看详情与管理完成状态。</p><span class="feature-tag">PLAN YOUR DAY</span></article>
+          <article class="feature-card reveal"><div class="feature-icon violet" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5c-3-2-6-2-10-1v15c4-1 7-1 10 1 3-2 6-2 10-1V4c-4-1-7-1-10 1zm0 0v15"/></svg></div><span class="feature-number">02</span><h3>学习与健康</h3><p>TD 健康云、阳光打卡与课堂纸飞机，让学习相关入口更集中。</p><span class="feature-tag">LEARN &amp; GROW</span></article>
+          <article class="feature-card reveal"><div class="feature-icon cyan" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="feature-number">03</span><h3>空间与校园事务</h3><p>iHome、空教室、图书馆空间、研讨室、校园卡与网费服务。</p><span class="feature-tag">CAMPUS SERVICES</span></article>
+          <article class="feature-card reveal"><div class="feature-icon blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12h16M12 4v16M5 5l14 14M19 5 5 19"/></svg></div><span class="feature-number">04</span><h3>连接与个性化</h3><p>WebVPN / 直连双模式、离线缓存、多账号、本地设置、主题与头像。</p><span class="feature-tag">YOUR WAY TO CONNECT</span></article>
         </div>
-        <div class="release-details">
-          <details id="macos-detail"><summary>macOS 下载说明</summary><p>Apple Silicon 安装包：构建与验收完成后提供 DMG。安装时请按 macOS 的安全提示操作，并核对下载页提供的 SHA-256。</p></details>
-          <details id="android-detail"><summary>Android 下载说明</summary><p>Android APK：正式签名构建与设备验收完成后提供下载；发布页会列出 SHA-256 和安装说明。</p></details>
-          <details id="windows-detail"><summary>Windows 下载说明</summary><p>Windows x64 安装包：由 Windows 构建环境生成并验收后提供 MSI/EXE 下载及 SHA-256。</p></details>
-          <details id="ios-detail"><summary>iOS 下载说明</summary><p>BUCC 2.0.0 未签名 IPA：待本次构建完成后提供。文件大小、SHA-256 和下载链接将与实际产物一并公布。</p><p>此文件不含设备描述文件，不能直接安装；安装前需要自行签名。本机签名验收包不会上传，也不通过 App Store 或 TestFlight 分发。</p></details>
-          <details id="harmony-detail"><summary>HarmonyOS 下载说明</summary><p>鸿蒙正式签名 HAP/APP：完成正式签名和安装验收后提供下载，并注明适配范围与 SHA-256。</p></details>
+      </div>
+    </section>
+
+    <section class="platform-story wrap reveal" aria-labelledby="platform-title">
+      <div class="platform-story-copy"><span class="eyebrow">ONE CAMPUS, MANY SCREENS</span><h2 id="platform-title">在熟悉的设备上，<br>继续你的校园节奏。</h2><p>BUCC 提供 macOS、Windows、Android、iOS 与 HarmonyOS 版本。根据当前设备推荐下载，也可以随时切换到其他平台。</p><div class="device-list" aria-label="支持平台"><span>macOS</span><span>Windows</span><span>Android</span><span>iOS</span><span>HarmonyOS</span></div></div>
+      <div class="device-stage" aria-hidden="true"><div class="device-glow"></div><div class="device-tablet"><div class="tablet-screen"><div class="screen-brand">BUCC <i></i></div><div class="screen-title">校园日常<br>一处就绪</div><div class="screen-widgets"><span></span><span></span><span></span></div><div class="screen-bar"></div></div></div><div class="device-phone"><div class="phone-screen"><i></i><b>今日安排</b><span></span><span></span><span></span><em>校园服务</em></div></div><div class="device-spark">✦</div></div>
+    </section>
+
+    <section id="downloads" class="downloads" aria-labelledby="download-title">
+      <div class="wrap download-inner reveal">
+        <div class="download-copy"><span class="eyebrow">GET STARTED</span><h2 id="download-title">下一段校园日常，<br>从 BUCC 开始。</h2><p>下载按钮会根据当前设备推荐对应安装包。也可以用旁边的菜单选择其他平台。</p></div>
+        <div class="download-panel">
+          <div class="download-mark"><span>BUCC</span><i>↗</i></div>
+          <strong>校园日常，一处就绪。</strong>
+          <a class="button secondary" href="#top">前往下载入口 <span aria-hidden="true">↑</span></a>
         </div>
-        <p class="download-footnote">文件会分段下载、逐段校验并合并；下载期间请保持此页面打开。浏览器支持“另存为”时可直接写入磁盘。</p>
-        <aside class="connection-note"><h3>2.0.0 更新与使用说明</h3><p>此版本统一五端版本信息和应用图标，并完善作业完成状态、校园卡与网费官方支付流程说明。安装前请查看平台说明与下载文件的 SHA-256。BUCC 提供 WebVPN 与直连两种连接方式。网费登录在支持的会话接续场景中可免登录验证码；官方充值表单仍可能要求独立图形验证码。直连模式下 TD 支持健康云次数查询与打卡，WebVPN 下支持次数查询。服务可用性以当前网络和官方系统为准。</p></aside>
       </div>
     </section>
   </main>
   <footer class="footer wrap"><span>BUCC · 独立校园客户端 · 2.0.0</span><a href="/privacy.html">隐私说明</a><span>非学校官方应用</span></footer>
   <script src="/main.js" defer></script>
+  <script src="/download-manifest.js" defer></script>
   <script src="/downloads.js" defer></script>
 </body>
 </html>

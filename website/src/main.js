@@ -1,13 +1,16 @@
-// Platform links open their real release status, including repeated clicks on the same link.
-function revealPlatform(id = location.hash.slice(1), focus = false) {
-  if (!id.endsWith('-detail')) return;
-  const detail = document.getElementById(id);
-  if (!(detail instanceof HTMLDetailsElement)) return;
-  detail.open = true;
-  if (focus) detail.querySelector('summary')?.focus({ preventScroll: true });
+const revealItems = document.querySelectorAll('.reveal');
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+if (reduceMotion || !('IntersectionObserver' in window)) {
+  revealItems.forEach((item) => item.classList.add('is-visible'));
+} else {
+  document.documentElement.classList.add('motion-ready');
+  const revealObserver = new IntersectionObserver((entries, observer) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      entry.target.classList.add('is-visible');
+      observer.unobserve(entry.target);
+    }
+  }, { threshold: 0.12, rootMargin: '0px 0px -36px 0px' });
+  revealItems.forEach((item) => revealObserver.observe(item));
 }
-window.addEventListener('hashchange', () => revealPlatform());
-for (const link of document.querySelectorAll('.platform')) {
-  link.addEventListener('click', () => revealPlatform(link.hash.slice(1), true));
-}
-revealPlatform();

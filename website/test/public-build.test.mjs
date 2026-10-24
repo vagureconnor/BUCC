@@ -5,9 +5,9 @@ import { createHash } from 'node:crypto';
 const root = new URL('../', import.meta.url);
 const read = (name) => readFile(new URL(name, root));
 test('public deployment includes only reviewed static assets', async () => {
-  assert.deepEqual((await readdir(new URL('dist/', root))).sort(),
-    ['_headers','_routes.json','aircraft.png','apple-touch-icon.png','download-manifest.json','downloads.js','favicon.png','index.html','main.js','og-image.png','privacy.html','style.css']);
-  for (const file of ['index.html', 'privacy.html', 'main.js', 'downloads.js', 'download-manifest.json', 'style.css', '_routes.json']) {
+  assert.deepEqual((await readdir(new URL('dist/', root))).filter((name) => name !== 'downloads').sort(),
+    ['_headers','_routes.json','aircraft.png','apple-touch-icon.png','download-manifest.js','download-manifest.json','downloads.js','favicon.png','index.html','main.js','og-image.png','privacy.html','style.css']);
+  for (const file of ['index.html', 'privacy.html', 'main.js', 'downloads.js', 'download-manifest.js', 'download-manifest.json', 'style.css', '_routes.json']) {
     const text = (await read(`dist/${file}`)).toString();
     assert.doesNotMatch(text, /\/Users\/|ProvisionedDevices|BEGIN .*PRIVATE KEY|oauth_token|[0-9a-f]{40}-[0-9a-f]{24}/i);
   }
@@ -17,30 +17,36 @@ test('original airplane asset is unchanged and website submits no credentials', 
   assert.equal(hash(await read('dist/aircraft.png')), hash(await read('../composeApp/icons/aircraft-cutout.png')));
   const index = (await read('dist/index.html')).toString();
   assert.doesNotMatch(index, /<form\b|<input\b|itms-services:/i);
-  assert.doesNotMatch(index, /<nav\b/i);
+  assert.match(index, /<nav\b/i);
   const ipaHrefs = [...index.matchAll(/href\s*=\s*["']([^"']*\.ipa(?:\?[^"']*)?)["']/gi)].map((match) => match[1]);
   assert.deepEqual(ipaHrefs, []);
   const headers = (await read('dist/_headers')).toString();
-  assert.match(headers, /connect-src 'none'/);
+  assert.match(headers, /connect-src 'self'/);
   assert.match(headers, /form-action 'none'/);
 });
-test('all platform actions resolve to real status panels', async () => {
+test('the site presents one adaptive download control and removes release notes', async () => {
   const index = (await read('dist/index.html')).toString();
-  for (const match of index.matchAll(/href="#([a-z]+-detail)"/g)) {
-    assert.ok(index.includes(`<details id="${match[1]}"`), match[1]);
-  }
   assert.match(index, /BUCC 2.0.0/);
-  assert.match(index, /正式签名构建/);
-  assert.match(index, /安装前需要自行签名/);
-  assert.match(index, /不含设备描述文件/);
-  assert.match(index, /SHA-256/i);
-  assert.match(index, /官方充值流程/);
-  assert.deepEqual([...index.matchAll(/data-platform="([^"]+)"/g)].map((match) => match[1]),
-    ['macos', 'android', 'windows', 'ios', 'harmony']);
+  assert.doesNotMatch(index, /选择你的平台|了解功能|下载说明|更新与使用说明|正在准备验证码/);
+  assert.equal([...index.matchAll(/data-main-download/g)].length, 1);
+  assert.match(index, /需要签名后才能使用/);
+  assert.match(index, /data-platform-menu/);
+  assert.match(index, /校园空间|校园事务/);
   const downloads = (await read('dist/downloads.js')).toString();
-  assert.match(downloads, /selectedFiles = new Map\(\)/);
-  assert.match(downloads, /card\.append\(button, status\)/);
-  assert.doesNotMatch(downloads, /container\.append\(row\)/);
+  assert.match(downloads, /function detectPlatform\(\)/);
+  assert.match(downloads, /userAgentData/);
+  assert.match(downloads, /fetchWithRetry/);
+  assert.match(downloads, /crypto\.subtle\.digest/);
+  assert.doesNotMatch(downloads, /load failed/i);
+  assert.match(downloads, /window\.BUCC_RELEASE_MANIFEST/);
+  assert.match(downloads, /document\.querySelector\('\[data-download-feedback\]'\)/);
+  assert.doesNotMatch(downloads, /fetchWithRetry\('\/download-manifest\.json'\)/);
+  assert.match(index, /download-manifest\.js/);
+  const main = (await read('dist/main.js')).toString();
+  assert.match(main, /IntersectionObserver/);
+  const styles = (await read('dist/style.css')).toString();
+  assert.match(styles, /prefers-reduced-motion/);
+  assert.match(styles, /@keyframes planeFloat/);
   const routes = JSON.parse((await read('dist/_routes.json')).toString());
   assert.deepEqual(routes, { version: 1, include: ['/downloads/*'], exclude: [] });
 });

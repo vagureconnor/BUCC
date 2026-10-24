@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { mkdir, open, stat } from 'node:fs/promises';
+import { mkdir, open, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -59,6 +59,8 @@ export async function packageReleases(files, { chunkSize = DEFAULT_CHUNK_SIZE, d
   const manifestHandle = await open(path.join(distDir, 'download-manifest.json'), 'w');
   try { await manifestHandle.writeFile(`${JSON.stringify(manifest, null, 2)}\n`); }
   finally { await manifestHandle.close(); }
+  await writeFile(path.join(distDir, 'download-manifest.js'),
+    `window.BUCC_RELEASE_MANIFEST = ${JSON.stringify(manifest)};\n`);
   return manifest;
 }
 

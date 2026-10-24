@@ -39,7 +39,7 @@ test('the site presents one adaptive download control and removes release notes'
   assert.doesNotMatch(index, /iHome.{0,20}学习安排|也可进入 iHome 等校园服务/);
   assert.match(index, /PatPat 在直连模式下可用，WebVPN 模式下暂不可用/);
   assert.doesNotMatch(index, /PatPat 服务目前暂停/);
-  assert.match(index, /prefers-color-scheme: dark/);
+  assert.doesNotMatch(index, /prefers-color-scheme/);
   const downloads = (await read('dist/downloads.js')).toString();
   assert.match(downloads, /function detectPlatform\(\)/);
   assert.match(downloads, /userAgentData/);
@@ -55,7 +55,7 @@ test('the site presents one adaptive download control and removes release notes'
   const styles = (await read('dist/style.css')).toString();
   assert.match(styles, /prefers-reduced-motion/);
   assert.match(styles, /@keyframes planeFloat/);
-  assert.match(styles, /prefers-color-scheme:dark/);
+  assert.doesNotMatch(styles, /prefers-color-scheme|color-scheme:dark/);
   assert.match(styles, /grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
   const routes = JSON.parse((await read('dist/_routes.json')).toString());
   assert.deepEqual(routes, { version: 1, include: ['/downloads/*'], exclude: [] });

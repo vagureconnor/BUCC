@@ -28,46 +28,110 @@ function parseRange(header, size) {
   return { offset: start, length: end - start + 1, start, end, partial: true };
 }
 
+function streamParts(parts, origin, range, fetcher) {
+  const end = range.offset + range.length;
+  let fileOffset = 0;
+  const selected = parts.flatMap((part) => {
+    const partStart = fileOffset;
+    fileOffset += part.size;
+    const start = Math.max(0, range.offset - partStart);
+    const stop = Math.min(part.size, end - partStart);
+    return start < stop ? [{ ...part, start, stop }] : [];
+  });
+  let index = 0;
+  let reader;
+  let partOffset = 0;
+
+  return new ReadableStream({
+    async pull(controller) {
+      try {
+        while (index < selected.length) {
+          const part = selected[index];
+          if (!reader) {
+            const url = new URL(part.url, origin);
+            if (url.origin !== origin || !url.pathname.startsWith("/downloads/parts/")) throw new Error("Invalid package part URL");
+            const response = await fetcher(url);
+            if (!response.ok || !response.body) throw new Error("Package part unavailable");
+            reader = response.body.getReader();
+            partOffset = 0;
+          }
+          const { done, value } = await reader.read();
+          if (done) {
+            reader = null;
+            index += 1;
+            continue;
+          }
+          const chunkStart = partOffset;
+          const chunkEnd = partOffset + value.byteLength;
+          partOffset = chunkEnd;
+          const start = Math.max(part.start, chunkStart);
+          const stop = Math.min(part.stop, chunkEnd);
+          if (start < stop) {
+            controller.enqueue(value.subarray(start - chunkStart, stop - chunkStart));
+            if (chunkEnd >= part.stop) {
+              await reader.cancel();
+              reader = null;
+              index += 1;
+            }
+            return;
+          }
+          if (chunkEnd >= part.stop) {
+            await reader.cancel();
+            reader = null;
+            index += 1;
+          }
+        }
+        controller.close();
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+    async cancel() {
+      await reader?.cancel();
+    },
+  });
+}
+
 export async function onRequest(context) {
-  const { request, env, params } = context;
+  const { request, params } = context;
   const filename = params?.file;
   if (typeof filename !== "string" || !FILENAME.test(filename)) return failure(404);
-  if (request.method !== "GET" && request.method !== "HEAD") {
-    return failure(405, { Allow: "GET, HEAD" });
-  }
-  const bucket = env?.BUCC_RELEASES_R2;
-  if (!bucket || typeof bucket.head !== "function" || typeof bucket.get !== "function") return failure(503);
+  if (request.method !== "GET" && request.method !== "HEAD") return failure(405, { Allow: "GET, HEAD" });
 
-  let metadata;
+  const fetcher = fetch.bind(globalThis);
+  let manifest;
   try {
-    metadata = await bucket.head(filename);
+    const response = await fetcher(new URL("/download-manifest.json", request.url), { cache: "no-store" });
+    if (!response.ok) return failure(503);
+    manifest = await response.json();
   } catch {
     return failure(503);
   }
-  if (!metadata || !Number.isSafeInteger(metadata.size) || metadata.size <= 0) return failure(404);
-  const sha256 = metadata.customMetadata?.sha256;
-  if (!SHA256.test(sha256 ?? "")) return failure(503);
+  const file = manifest?.version === 1 && Array.isArray(manifest.files)
+    ? manifest.files.find((entry) => entry.name === filename)
+    : null;
+  if (!file) return failure(404);
+  if (!Number.isSafeInteger(file.size) || file.size <= 0 || !SHA256.test(file.sha256 ?? "") || !Array.isArray(file.parts) || !file.parts.length) {
+    return failure(503);
+  }
+  if (file.parts.some((part) => !Number.isSafeInteger(part.size) || part.size <= 0 || !SHA256.test(part.sha256 ?? "") || typeof part.url !== "string")) {
+    return failure(503);
+  }
+  if (file.parts.reduce((size, part) => size + part.size, 0) !== file.size) return failure(503);
 
-  const range = parseRange(request.headers.get("Range"), metadata.size);
-  if (!range) return failure(416, { "Content-Range": `bytes */${metadata.size}` });
+  const range = parseRange(request.headers.get("Range"), file.size);
+  if (!range) return failure(416, { "Content-Range": `bytes */${file.size}` });
   const headers = {
     "Content-Type": "application/octet-stream",
     "Content-Disposition": `attachment; filename="${filename}"`,
     "Content-Length": String(range.length),
     "Accept-Ranges": "bytes",
     "X-Content-Type-Options": "nosniff",
-    ETag: `"${sha256}"`,
-    "Cache-Control": "public, max-age=31536000, immutable",
+    ETag: `"${file.sha256}"`,
+    "Cache-Control": "no-store",
   };
-  if (range.partial) headers["Content-Range"] = `bytes ${range.start}-${range.end}/${metadata.size}`;
+  if (range.partial) headers["Content-Range"] = `bytes ${range.start}-${range.end}/${file.size}`;
   const status = range.partial ? 206 : 200;
   if (request.method === "HEAD") return new Response(null, { status, headers });
-
-  try {
-    const object = await bucket.get(filename, range.partial ? { range: { offset: range.offset, length: range.length } } : {});
-    if (!object || object.size !== metadata.size || !object.body) return failure(503);
-    return new Response(object.body, { status, headers });
-  } catch {
-    return failure(503);
-  }
+  return new Response(streamParts(file.parts, new URL(request.url).origin, range, fetcher), { status, headers });
 }

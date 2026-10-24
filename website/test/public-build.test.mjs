@@ -43,8 +43,10 @@ test('the site presents one adaptive download control and removes release notes'
   const downloads = (await read('dist/downloads.js')).toString();
   assert.match(downloads, /function detectPlatform\(\)/);
   assert.match(downloads, /userAgentData/);
-  assert.match(downloads, /fetchWithRetry/);
-  assert.match(downloads, /crypto\.subtle\.digest/);
+  assert.match(downloads, /function startReleaseDownload\(file, status\)/);
+  assert.match(downloads, /downloads\/\$\{encodeURIComponent\(file\.name\)\}/);
+  assert.match(downloads, /link\.download = file\.name/);
+  assert.doesNotMatch(downloads, /正在下载并校验第|fetchWithRetry|crypto\.subtle\.digest/);
   assert.doesNotMatch(downloads, /load failed/i);
   assert.match(downloads, /window\.BUCC_RELEASE_MANIFEST/);
   assert.match(downloads, /document\.querySelector\('\[data-download-feedback\]'\)/);

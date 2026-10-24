@@ -4,64 +4,80 @@ import { createHash } from "node:crypto";
 import { onRequest } from "../functions/downloads/[file].js";
 
 const filename = "BUCC-2.0.0-iOS-unsigned-abcdef0.ipa";
-const bytes = new TextEncoder().encode("abcdefghij");
-const sha256 = createHash("sha256").update(bytes).digest("hex");
-const get = (context) => onRequest({ ...context, request: new Request(context.request, { method: "GET" }) });
-const head = (context) => onRequest({ ...context, request: new Request(context.request, { method: "HEAD" }) });
+const encoder = new TextEncoder();
+const parts = [encoder.encode("abcde"), encoder.encode("fghij")];
+const bytes = new Uint8Array([...parts[0], ...parts[1]]);
+const hash = (value) => createHash("sha256").update(value).digest("hex");
+const sha256 = hash(bytes);
+const manifestFile = {
+  name: filename,
+  size: bytes.byteLength,
+  sha256,
+  parts: parts.map((part, index) => ({
+    url: `/downloads/parts/part-${index}`,
+    size: part.byteLength,
+    sha256: hash(part),
+  })),
+};
 
-function fixture({ missing = false, invalidSha = false } = {}) {
+function fixture({ missing = false, invalidSha = false, missingPart = false } = {}) {
   const calls = [];
-  const object = {
-    size: bytes.byteLength,
-    customMetadata: { sha256: invalidSha ? "bad" : sha256 },
-    body: new Blob([bytes]).stream(),
-  };
-  const bucket = {
-    async head(key) {
-      calls.push(["head", key]);
-      return missing ? null : object;
-    },
-    async get(key, options) {
-      calls.push(["get", key, options]);
-      if (missing) return null;
-      const range = options?.range;
-      return { ...object, body: new Blob([range ? bytes.slice(range.offset, range.offset + range.length) : bytes]).stream() };
-    },
+  const file = { ...manifestFile, sha256: invalidSha ? "bad" : sha256 };
+  const mockFetch = async (input) => {
+    const url = new URL(input);
+    calls.push(url.pathname);
+    if (url.pathname === "/download-manifest.json") {
+      return new Response(JSON.stringify({ version: 1, files: missing ? [] : [file] }));
+    }
+    const partIndex = Number(url.pathname.at(-1));
+    if (missingPart) return new Response(null, { status: 404 });
+    return new Response(parts[partIndex]);
   };
   return {
     calls,
-    context(file = filename, headers = {}) {
+    context(fileName = filename, headers = {}, method = "GET") {
       return {
-        params: { file },
-        env: { BUCC_RELEASES_R2: bucket },
-        request: new Request("https://bucc.example/downloads/" + encodeURIComponent(file), { headers }),
+        params: { file: fileName },
+        request: new Request(`https://bucc.example/downloads/${encodeURIComponent(fileName)}`, { method, headers }),
+        mockFetch,
       };
     },
   };
 }
 
-test("streams complete bytes from R2 and serves safe immutable headers", async () => {
+async function invoke(context) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = context.mockFetch;
+  try {
+    return await onRequest(context);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+test("streams package chunks with attachment headers before the full file is buffered", async () => {
   const mock = fixture();
-  const response = await get(mock.context());
-  const body = new Uint8Array(await response.arrayBuffer());
+  const response = await invoke(mock.context());
   assert.equal(response.status, 200);
-  assert.deepEqual(body, bytes);
-  assert.equal(createHash("sha256").update(body).digest("hex"), sha256);
+  assert.equal(response.headers.get("Content-Disposition"), `attachment; filename="${filename}"`);
   assert.equal(response.headers.get("Content-Length"), "10");
-  assert.equal(response.headers.get("Accept-Ranges"), "bytes");
   assert.equal(response.headers.get("Content-Type"), "application/octet-stream");
   assert.equal(response.headers.get("X-Content-Type-Options"), "nosniff");
   assert.equal(response.headers.get("ETag"), `"${sha256}"`);
-  assert.match(response.headers.get("Cache-Control"), /immutable/);
+  assert.equal(response.headers.get("Accept-Ranges"), "bytes");
+  const body = new Uint8Array(await response.arrayBuffer());
+  assert.deepEqual(body, bytes);
+  assert.equal(hash(body), sha256);
+  assert.deepEqual(mock.calls, ["/download-manifest.json", "/downloads/parts/part-0", "/downloads/parts/part-1"]);
 });
 
-test("supports closed, open-ended, and suffix byte ranges", async () => {
+test("supports closed, open-ended, and suffix byte ranges across chunks", async () => {
   for (const [range, expected, contentRange] of [
     ["bytes=2-6", "cdefg", "bytes 2-6/10"],
     ["bytes=7-", "hij", "bytes 7-9/10"],
     ["bytes=-3", "hij", "bytes 7-9/10"],
   ]) {
-    const response = await get(fixture().context(filename, { Range: range }));
+    const response = await invoke(fixture().context(filename, { Range: range }));
     assert.equal(response.status, 206);
     assert.equal(await response.text(), expected);
     assert.equal(response.headers.get("Content-Range"), contentRange);
@@ -70,37 +86,39 @@ test("supports closed, open-ended, and suffix byte ranges", async () => {
 
 test("rejects malformed, multiple, and unsatisfiable ranges", async () => {
   for (const range of ["bytes=20-", "bytes=3-2", "bytes=-0", "bytes=0-1,4-5", "items=0-1"]) {
-    const response = await get(fixture().context(filename, { Range: range }));
+    const response = await invoke(fixture().context(filename, { Range: range }));
     assert.equal(response.status, 416, range);
     assert.equal(response.headers.get("Content-Range"), "bytes */10");
   }
 });
 
-test("rejects non-release filenames before touching R2", async () => {
+test("rejects non-release filenames before looking up the manifest", async () => {
   const mock = fixture();
-  const response = await get(mock.context("../secrets.ipa"));
-  assert.equal(response.status, 404);
-  assert.equal(mock.calls.length, 0);
+  assert.equal((await invoke(mock.context("../secrets.ipa"))).status, 404);
+  assert.deepEqual(mock.calls, []);
 });
 
-test("returns 404 for missing releases and 503 for missing SHA metadata", async () => {
-  assert.equal((await get(fixture({ missing: true }).context())).status, 404);
-  assert.equal((await get(fixture({ invalidSha: true }).context())).status, 503);
+test("returns 404 for missing releases and 503 for invalid package metadata", async () => {
+  assert.equal((await invoke(fixture({ missing: true }).context())).status, 404);
+  assert.equal((await invoke(fixture({ invalidSha: true }).context())).status, 503);
 });
 
-test("HEAD returns metadata without reading object bytes", async () => {
+test("HEAD returns package metadata without fetching the package chunks", async () => {
   const mock = fixture();
-  const response = await head(mock.context(filename, { Range: "bytes=1-3" }));
+  const response = await invoke(mock.context(filename, { Range: "bytes=1-3" }, "HEAD"));
   assert.equal(response.status, 206);
   assert.equal(response.headers.get("Content-Length"), "3");
   assert.equal(response.headers.get("Content-Range"), "bytes 1-3/10");
-  assert.deepEqual(mock.calls, [["head", filename]]);
+  assert.deepEqual(mock.calls, ["/download-manifest.json"]);
 });
 
-test("rejects unsupported methods without reading R2", async () => {
+test("rejects unsupported methods without looking up the manifest", async () => {
   const mock = fixture();
-  const response = await onRequest({ ...mock.context(), request: new Request("https://bucc.example", { method: "POST" }) });
-  assert.equal(response.status, 405);
-  assert.equal(response.headers.get("Allow"), "GET, HEAD");
+  assert.equal((await invoke(mock.context(filename, {}, "POST"))).status, 405);
   assert.equal(mock.calls.length, 0);
+});
+
+test("reports a missing package chunk as a stream failure", async () => {
+  const response = await invoke(fixture({ missingPart: true }).context());
+  await assert.rejects(response.arrayBuffer());
 });

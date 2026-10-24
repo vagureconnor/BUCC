@@ -45,75 +45,12 @@ function downloadPriority(file, platform) {
   return name.includes('unsigned') ? 2 : 1;
 }
 
-async function sha256(bytes) {
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function delay(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
-async function fetchWithRetry(url) {
-  let response;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      response = await fetch(url, { cache: 'no-store', credentials: 'same-origin' });
-      if (response.ok || response.status < 500) return response;
-    } catch (error) {
-      if (attempt === 2) throw error;
-    }
-    await delay(400 * (attempt + 1));
-  }
-  return response;
-}
-
-let busy = false;
-async function saveRelease(file, button, status) {
-  if (busy) return;
-  busy = true;
-  button.disabled = true;
-  if (downloadButton) downloadButton.disabled = true;
-  if (menuToggle) menuToggle.disabled = true;
-  const pieces = [];
-  let writer;
-  try {
-    if ('showSaveFilePicker' in window) {
-      const handle = await window.showSaveFilePicker({ suggestedName: file.name });
-      writer = await handle.createWritable();
-    }
-    for (let index = 0; index < file.parts.length; index += 1) {
-      const part = file.parts[index];
-      status.textContent = `正在下载并校验第 ${index + 1}/${file.parts.length} 段…`;
-      const response = await fetchWithRetry(part.url);
-      if (!response?.ok) throw new Error(`分段暂时无法下载（HTTP ${response?.status ?? '网络错误'}），请重试。`);
-      const bytes = await response.arrayBuffer();
-      if (bytes.byteLength !== part.size || await sha256(bytes) !== part.sha256) {
-        throw new Error(`第 ${index + 1} 段校验失败，请重试。`);
-      }
-      if (writer) await writer.write(bytes);
-      else pieces.push(bytes);
-    }
-    if (writer) {
-      await writer.close();
-    } else {
-      const blob = new Blob(pieces, { type: 'application/octet-stream' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = file.name;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
-    }
-    status.textContent = `下载完成 · SHA-256 ${file.sha256}`;
-  } catch (error) {
-    if (writer) await writer.abort().catch(() => {});
-    status.textContent = error.name === 'AbortError' ? '已取消下载。' : error.message;
-  } finally {
-    busy = false;
-    button.disabled = false;
-    if (downloadButton) downloadButton.disabled = false;
-    if (menuToggle) menuToggle.disabled = false;
-  }
+function startReleaseDownload(file, status) {
+  const link = document.createElement('a');
+  link.href = `/downloads/${encodeURIComponent(file.name)}`;
+  link.download = file.name;
+  link.click();
+  status.textContent = `已开始下载 ${file.name}，请在浏览器下载列表中查看进度。`;
 }
 
 function setMenuOpen(open) {
@@ -143,13 +80,13 @@ if (container && downloadButton && menuToggle && menu && platformOptions && feed
       downloadButton.innerHTML = `下载 ${PLATFORM_NAMES[recommended]} 版 <span aria-hidden="true">↓</span>`;
       downloadButton.setAttribute('aria-label', `下载 ${PLATFORM_NAMES[recommended]} 版`);
       iosNote.hidden = recommended !== 'ios';
-      downloadButton.addEventListener('click', () => saveRelease(platformFiles.get(recommended), downloadButton, feedback));
+      downloadButton.addEventListener('click', () => startReleaseDownload(platformFiles.get(recommended), feedback));
     } else {
       const fallback = ['macos', 'windows', 'android', 'ios', 'harmony'].find((platform) => platformFiles.has(platform));
       downloadButton.innerHTML = `下载 ${PLATFORM_NAMES[fallback]} 版 <span aria-hidden="true">↓</span>`;
       downloadButton.setAttribute('aria-label', `下载 ${PLATFORM_NAMES[fallback]} 版`);
       iosNote.hidden = fallback !== 'ios';
-      downloadButton.addEventListener('click', () => saveRelease(platformFiles.get(fallback), downloadButton, feedback));
+      downloadButton.addEventListener('click', () => startReleaseDownload(platformFiles.get(fallback), feedback));
     }
     downloadButton.disabled = false;
 
@@ -166,7 +103,7 @@ if (container && downloadButton && menuToggle && menu && platformOptions && feed
       option.addEventListener('click', () => {
         setMenuOpen(false);
         iosNote.hidden = platform !== 'ios';
-        saveRelease(file, option, feedback);
+        startReleaseDownload(file, feedback);
       });
       row.append(option);
       if (platform === 'ios') {

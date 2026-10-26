@@ -8,11 +8,14 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import app.bucc.api.finance.CampusNetworkTraffic
 import app.bucc.api.finance.CampusRechargeBackend
@@ -111,7 +114,7 @@ class CampusFinanceCaptchaUiTest {
     setScreen(session, recharge, loaders)
 
     compose.onNodeWithText("网费").performClick()
-    waitForInternetForm()
+    waitForInternetBalances()
     compose.runOnIdle {
       assertEquals(1, session.ensureCalls)
       assertEquals(1, loaders.internetCalls)
@@ -380,12 +383,20 @@ class CampusFinanceCaptchaUiTest {
     assertEquals(0, recharge.createCalls)
   }
 
-  private fun waitForInternetForm() {
+  private fun waitAndScrollTo(text: String) {
     compose.waitUntil(5_000) {
-      compose.onAllNodesWithText("充值金额（元）").fetchSemanticsNodes().size == 1
+      runCatching {
+            compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(text))
+            compose.onAllNodesWithText(text).fetchSemanticsNodes().size == 1
+          }
+          .getOrDefault(false)
     }
     compose.waitForIdle()
   }
+
+  private fun waitForInternetBalances() = waitAndScrollTo("网费余额")
+
+  private fun waitForInternetForm() = waitAndScrollTo("充值金额（元）")
 
   private fun setScreen(
       session: FakeSession,

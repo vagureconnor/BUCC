@@ -1,9 +1,9 @@
 package app.bucc.api.local
 
-import app.bucc.api.SIGNIN_LOGIN_REDIRECT_LIMIT
-import app.bucc.api.SIGNIN_MY_CENTER_URL
 import app.bucc.api.ConnectionMode
 import app.bucc.api.ConnectionRuntime
+import app.bucc.api.SIGNIN_LOGIN_REDIRECT_LIMIT
+import app.bucc.api.SIGNIN_MY_CENTER_URL
 import app.bucc.api.extractSigninLoginNameFromUrl
 import app.bucc.api.feature.SigninApiBackend
 import app.bucc.api.resolveSigninRedirectUrl
@@ -143,13 +143,14 @@ internal class LocalSigninApiBackend : SigninApiBackend {
   ): Result<SigninActionResponse> {
     val authSession =
         LocalAuthSessionStore.get() ?: return Result.failure(localUnauthenticatedApiException())
-    val signinSession = try {
-      currentSession(authSession.studentId())
-    } catch (cancelled: CancellationException) {
-      throw cancelled
-    } catch (_: Exception) {
-      null
-    }
+    val signinSession =
+        try {
+          currentSession(authSession.studentId())
+        } catch (cancelled: CancellationException) {
+          throw cancelled
+        } catch (_: Exception) {
+          null
+        }
     if (signinSession == null) {
       val error = loginLastError ?: "iclass 登录失败"
       loginLastError = null

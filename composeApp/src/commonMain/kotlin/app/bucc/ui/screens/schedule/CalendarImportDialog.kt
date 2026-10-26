@@ -31,7 +31,7 @@ fun CalendarImportDialog(
   }
   AlertDialog(
       onDismissRequest = { if (!importing) onDismiss() },
-      title = { Text("导入 iOS 日历") },
+      title = { Text("导入系统日历") },
       text = {
         Column(
             Modifier.verticalScroll(rememberScrollState()),

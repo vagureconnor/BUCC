@@ -107,11 +107,14 @@ fun LibBookReserveScreen(viewModel: LibBookViewModel, onSubmitSuccess: () -> Uni
   val uiState by viewModel.uiState.collectAsState()
   val snackbarHostState = remember { SnackbarHostState() }
   var showMapDialog by remember { mutableStateOf(false) }
-  var mapMode by remember { mutableStateOf(true) }
+  var mapMode by remember(uiState.selectedAreaId) { mutableStateOf(true) }
   var showReservationConfirm by remember { mutableStateOf(false) }
   val lifecycleOwner = LocalLifecycleOwner.current
   val selectedMapResource = libBookAreaMapResource(uiState.selectedAreaId)
 
+  LaunchedEffect(uiState.selectedAreaId, uiState.seats) {
+    if (uiState.seats.isNotEmpty() && !libBookSeatMapHasCoordinates(uiState.seats)) mapMode = false
+  }
   LaunchedEffect(Unit) { viewModel.ensureInitialLoaded() }
   LaunchedEffect(viewModel, lifecycleOwner) {
     lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -319,6 +322,11 @@ fun LibBookReserveScreen(viewModel: LibBookViewModel, onSubmitSuccess: () -> Uni
                         )
                       }
                       Text("点击可用座位选择；双指缩放或使用放大按钮查看编号。", style = MaterialTheme.typography.bodySmall)
+                      val unmapped = visibleSeats.filterNot(::libBookSeatHasCoordinates)
+                      if (unmapped.isNotEmpty()) {
+                        Text("部分座位没有定位信息，可在下方列表选择。", style = MaterialTheme.typography.bodySmall)
+                        SeatGrid(unmapped, uiState.selectedSeatId, viewModel::selectSeat)
+                      }
                     } else {
                       Text(
                           if (base == null) "地图尚未就绪或加载失败，可刷新重试或切换列表模式。"

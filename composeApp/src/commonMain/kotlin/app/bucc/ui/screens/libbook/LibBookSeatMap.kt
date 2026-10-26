@@ -43,7 +43,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 internal fun libBookSeatMapHasCoordinates(seats: List<LibBookSeatDto>): Boolean =
-    seats.isNotEmpty() && seats.all { it.mapRegion() != null }
+    seats.any(::libBookSeatHasCoordinates)
+
+internal fun libBookSeatHasCoordinates(seat: LibBookSeatDto): Boolean = seat.mapRegion() != null
 
 private fun LibBookSeatDto.mapRegion(): LibBookMapSeatRegion? =
     libBookMapSeatRegion(id, pointX, pointY, width, height, status, inLabel)

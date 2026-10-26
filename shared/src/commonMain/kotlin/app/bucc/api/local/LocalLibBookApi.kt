@@ -209,6 +209,8 @@ internal class LocalLibBookApiBackend : LibBookApiBackend {
 
     return try {
       Result.success(block(currentClient(username)))
+    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+      throw cancelled
     } catch (error: Exception) {
       Result.failure(mapFailure(error, defaultMessage))
     }
@@ -717,11 +719,14 @@ private fun JsonObject.messageToLibBookErrorCode(): String {
     message.contains("已取消") ||
         message.contains("用户取消") ||
         message.contains("已结束") ||
+        message.contains("已完成") -> "libbook_booking_ended"
+    message.contains("入馆") ||
+        message.contains("到馆") ||
+        message.contains("门禁") ||
         message.contains("不能取消") ||
         message.contains("无法取消") ||
-        message.contains("已完成") ||
-        message.contains("不存在") ||
-        message.contains("失效") -> "libbook_not_found"
+        message.contains("无权限") -> "libbook_not_eligible"
+    message.contains("不存在") || message.contains("失效") -> "libbook_not_found"
     message.contains("已被") || message.contains("不可") || message.contains("无可预约") ->
         "libbook_seat_unavailable"
     else -> "libbook_error"
@@ -731,6 +736,8 @@ private fun JsonObject.messageToLibBookErrorCode(): String {
 private fun String.toLibBookHttpStatus(): HttpStatusCode =
     when (this) {
       "libbook_not_found" -> HttpStatusCode.NotFound
+      "libbook_booking_ended" -> HttpStatusCode.Conflict
+      "libbook_not_eligible" -> HttpStatusCode.Forbidden
       "libbook_seat_unavailable" -> HttpStatusCode.Conflict
       "invalid_request" -> HttpStatusCode.BadRequest
       else -> HttpStatusCode.BadGateway

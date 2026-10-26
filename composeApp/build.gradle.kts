@@ -142,6 +142,16 @@ compose.desktop {
         bundleID = "app.bucc"
         iconFile = project.file("icons/app.icns")
         minimumSystemVersion = "11.0"
+        infoPlist {
+          extraKeysRawXml =
+              """
+              <key>NSCalendarsUsageDescription</key>
+              <string>将课表导入系统日历</string>
+              <key>NSCalendarsFullAccessUsageDescription</key>
+              <string>将课表导入系统日历并更新已导入的课程</string>
+              """
+                  .trimIndent()
+        }
       }
       linux { iconFile = project.file("icons/app.png") }
 
@@ -316,6 +326,8 @@ if (System.getProperty("os.name").startsWith("Mac", ignoreCase = true)) {
                     "WebKit",
                     "-framework",
                     "Cocoa",
+                    "-framework",
+                    "EventKit",
                     "-o",
                     nativeLibrary.get().asFile.absolutePath,
                 )

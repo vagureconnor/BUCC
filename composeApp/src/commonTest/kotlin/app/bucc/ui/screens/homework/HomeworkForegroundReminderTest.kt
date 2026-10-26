@@ -38,10 +38,11 @@ class HomeworkForegroundReminderTest {
     Dispatchers.setMain(StandardTestDispatcher(testScheduler))
     val settings = MapSettings()
     ScheduleStore.settings = settings
-    NotificationPreferenceStore(settings).write(
-        account,
-        NotificationPreferences(newHomework = false),
-    )
+    NotificationPreferenceStore(settings)
+        .write(
+            account,
+            NotificationPreferences(newHomework = false),
+        )
     val adapter = FixtureHomeworkAdapter(mutableListOf(homework("existing")))
     val viewModel = viewModel(adapter, settings)
     try {
@@ -67,10 +68,11 @@ class HomeworkForegroundReminderTest {
     Dispatchers.setMain(StandardTestDispatcher(testScheduler))
     val settings = MapSettings()
     ScheduleStore.settings = settings
-    NotificationPreferenceStore(settings).write(
-        account,
-        NotificationPreferences(newHomework = false),
-    )
+    NotificationPreferenceStore(settings)
+        .write(
+            account,
+            NotificationPreferences(newHomework = false),
+        )
     val adapter = FixtureHomeworkAdapter(mutableListOf(homework("existing")))
     val viewModel = viewModel(adapter, settings)
     try {
@@ -90,10 +92,11 @@ class HomeworkForegroundReminderTest {
     Dispatchers.setMain(StandardTestDispatcher(testScheduler))
     val settings = MapSettings()
     ScheduleStore.settings = settings
-    NotificationPreferenceStore(settings).write(
-        account,
-        NotificationPreferences(newHomework = false),
-    )
+    NotificationPreferenceStore(settings)
+        .write(
+            account,
+            NotificationPreferences(newHomework = false),
+        )
     val gate = CompletableDeferred<Unit>()
     val adapter = FixtureHomeworkAdapter(mutableListOf(homework("existing")), gate)
     val viewModel = viewModel(adapter, settings)
@@ -117,7 +120,8 @@ class HomeworkForegroundReminderTest {
       )
 
   private fun seenIds(settings: MapSettings): Set<String> =
-      settings.getStringOrNull("homework_reminder_seen_$account")
+      settings
+          .getStringOrNull("homework_reminder_seen_$account")
           ?.let { Json.decodeFromString<Set<String>>(it) }
           .orEmpty()
 

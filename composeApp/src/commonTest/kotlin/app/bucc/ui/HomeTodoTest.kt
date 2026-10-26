@@ -435,10 +435,13 @@ class HomeTodoTest {
             dayOfWeek = 3,
         )
 
-    val match = findSigninCourse(
-        course,
-        listOf(SigninClassDto("signin-1", "大学物理", "2026-04-22 12:08", "2026-04-22T13:00:00", 0)),
-    )
+    val match =
+        findSigninCourse(
+            course,
+            listOf(
+                SigninClassDto("signin-1", "大学物理", "2026-04-22 12:08", "2026-04-22T13:00:00", 0)
+            ),
+        )
 
     assertEquals("signin-1", match?.courseId)
   }
@@ -462,7 +465,9 @@ class HomeTodoTest {
             dayOfWeek = 3,
         )
 
-    assertNull(findSigninCourse(course, listOf(SigninClassDto("other", "大学物理", "12:09", "13:00", 0))))
+    assertNull(
+        findSigninCourse(course, listOf(SigninClassDto("other", "大学物理", "12:09", "13:00", 0)))
+    )
   }
 
   @Test

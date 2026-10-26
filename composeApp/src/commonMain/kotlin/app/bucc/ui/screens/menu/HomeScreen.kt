@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.ExperimentalMaterialApi
@@ -90,6 +89,7 @@ internal fun HomeScreen(
     onFeatureOrderChange: (String, List<String>) -> Unit,
     onCourseClick: (CourseClass) -> Unit,
     modifier: Modifier = Modifier,
+    onCourseOccurrenceClick: ((UpcomingClass) -> Unit)? = null,
 ) {
   val pullRefreshState = rememberPullRefreshState(refreshing = isRefreshing, onRefresh = onRefresh)
   var editingOrder by remember { mutableStateOf(false) }
@@ -127,7 +127,7 @@ internal fun HomeScreen(
             else null,
             signingTodoId,
             onSigninTodoClick,
-            { onCourseClick(occurrence.course) },
+            { onCourseOccurrenceClick?.invoke(occurrence) ?: onCourseClick(occurrence.course) },
         )
       }
     }
@@ -230,7 +230,9 @@ internal fun HomeScreen(
                   else null,
                   signingTodoId,
                   onSigninTodoClick,
-                  { onCourseClick(occurrence.course) },
+                  {
+                    onCourseOccurrenceClick?.invoke(occurrence) ?: onCourseClick(occurrence.course)
+                  },
               )
             }
         item { TodayCourseProgress(progress, now, isLoading, error, scheduleHasLoaded) }

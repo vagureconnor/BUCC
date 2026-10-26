@@ -11,7 +11,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
-actual fun calendarImportAvailable(): Boolean = true
+actual fun calendarImportAvailable(): Boolean = false
 
 actual suspend fun importCourseCalendar(
     accountId: String,

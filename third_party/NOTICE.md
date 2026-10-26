@@ -48,6 +48,6 @@ campus helper is not covered solely by that license.
   in third_party/bucc-physical-proxy/go.mod and go.sum; source can be obtained
   with `go mod download` using the documented Go toolchain.
 
-The local desktop app bundle includes the retained helper source, license, and
-integration notes. This delivery is private and local; it does not authorize a
-public release.
+The desktop app bundle includes the retained helper source, license, and
+integration notes. Public source and release distributions retain these notices
+and the corresponding helper source.

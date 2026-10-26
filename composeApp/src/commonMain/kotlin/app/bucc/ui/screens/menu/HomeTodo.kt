@@ -514,9 +514,9 @@ internal fun findSigninCourse(
         val signinBegin = signinTimeParts(signinClass.classBeginTime) ?: return@filter false
         val signinEnd = signinTimeParts(signinClass.classEndTime) ?: return@filter false
         (classDate == null ||
-            listOfNotNull(beginTime.first, endTime.first, signinBegin.first, signinEnd.first)
-                .all { it == classDate }) &&
-            beginTime.second == signinBegin.second && endTime.second == signinEnd.second
+            listOfNotNull(beginTime.first, endTime.first, signinBegin.first, signinEnd.first).all {
+              it == classDate
+            }) && beginTime.second == signinBegin.second && endTime.second == signinEnd.second
       }
       .singleOrNull()
 }
@@ -524,8 +524,8 @@ internal fun findSigninCourse(
 private fun signinTimeParts(value: String): Pair<LocalDate?, LocalTime>? {
   val normalized = value.trim()
   if ('-' in normalized && (' ' in normalized || 'T' in normalized)) {
-    val dateTime = runCatching { LocalDateTime.parse(normalized.replace(" ", "T")) }.getOrNull()
-        ?: return null
+    val dateTime =
+        runCatching { LocalDateTime.parse(normalized.replace(" ", "T")) }.getOrNull() ?: return null
     return dateTime.date to dateTime.time
   }
   val time = parseClockTime(normalized) ?: return null

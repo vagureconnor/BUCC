@@ -28,27 +28,31 @@ android {
         }
       }
 
-  val releaseKeyPath =
-      localProperties.getProperty("SIGNING_KEY") ?: System.getenv("SIGNING_KEY")
+  val releaseKeyPath = localProperties.getProperty("SIGNING_KEY") ?: System.getenv("SIGNING_KEY")
   val releaseStorePassword =
-      localProperties.getProperty("SIGNING_STORE_PASSWORD") ?: System.getenv("SIGNING_STORE_PASSWORD")
+      localProperties.getProperty("SIGNING_STORE_PASSWORD")
+          ?: System.getenv("SIGNING_STORE_PASSWORD")
   val releaseKeyAlias =
       localProperties.getProperty("SIGNING_KEY_ALIAS") ?: System.getenv("SIGNING_KEY_ALIAS")
   val releaseKeyPassword =
       localProperties.getProperty("SIGNING_KEY_PASSWORD") ?: System.getenv("SIGNING_KEY_PASSWORD")
   val hasReleaseSigning =
-      listOf(releaseKeyPath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
-          .all { !it.isNullOrBlank() }
+      listOf(releaseKeyPath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword).all {
+        !it.isNullOrBlank()
+      }
   val hasAnyReleaseSigning =
-      listOf(releaseKeyPath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
-          .any { !it.isNullOrBlank() }
+      listOf(releaseKeyPath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword).any {
+        !it.isNullOrBlank()
+      }
   val unsignedRelease = providers.gradleProperty("bucc.android.unsignedRelease").orNull == "true"
 
   val validateReleaseSigning by
       tasks.registering {
         doLast {
           if (unsignedRelease && hasAnyReleaseSigning) {
-            throw GradleException("Unsigned Android Release builds must not receive release signing values.")
+            throw GradleException(
+                "Unsigned Android Release builds must not receive release signing values."
+            )
           }
           if (!unsignedRelease && !hasReleaseSigning) {
             throw GradleException(
@@ -74,12 +78,21 @@ android {
   buildTypes {
     getByName("release") {
       isMinifyEnabled = false
-      signingConfig = if (hasReleaseSigning && !unsignedRelease) signingConfigs.getByName("release") else null
+      signingConfig =
+          if (hasReleaseSigning && !unsignedRelease) signingConfigs.getByName("release") else null
     }
   }
 
   tasks
-      .matching { it.name in setOf("packageRelease", "packageReleaseBundle", "bundleRelease", "validateSigningRelease") }
+      .matching {
+        it.name in
+            setOf(
+                "packageRelease",
+                "packageReleaseBundle",
+                "bundleRelease",
+                "validateSigningRelease",
+            )
+      }
       .configureEach { dependsOn(validateReleaseSigning) }
 
   compileOptions {

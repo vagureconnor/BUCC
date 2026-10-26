@@ -3,7 +3,6 @@ package app.bucc.ui
 import app.bucc.api.feature.SigninApi
 import app.bucc.api.feature.SigninApiBackend
 import app.bucc.model.dto.SigninActionResponse
-import app.bucc.model.dto.SigninClassDto
 import app.bucc.model.dto.SigninStatusResponse
 import app.bucc.ui.screens.signin.SigninViewModel
 import kotlin.test.AfterTest
@@ -30,19 +29,18 @@ class SigninViewModelTest {
   fun `failed load stays retryable and successful retry marks loaded`() = runTest {
     Dispatchers.setMain(StandardTestDispatcher(testScheduler))
     var calls = 0
-    val api =
-        SigninApi {
-          object : SigninApiBackend {
-              override suspend fun getTodayClasses(): Result<SigninStatusResponse> {
-                calls++
-                return if (calls == 1) Result.failure(IllegalStateException("offline"))
-                else Result.success(SigninStatusResponse(code = 200, message = "ok", data = emptyList()))
-              }
-
-              override suspend fun performSignin(courseId: String) =
-                  Result.success(SigninActionResponse(200, true, "ok"))
-          }
+    val api = SigninApi {
+      object : SigninApiBackend {
+        override suspend fun getTodayClasses(): Result<SigninStatusResponse> {
+          calls++
+          return if (calls == 1) Result.failure(IllegalStateException("offline"))
+          else Result.success(SigninStatusResponse(code = 200, message = "ok", data = emptyList()))
         }
+
+        override suspend fun performSignin(courseId: String) =
+            Result.success(SigninActionResponse(200, true, "ok"))
+      }
+    }
     val viewModel = SigninViewModel(api)
 
     viewModel.ensureTodayLoaded()
@@ -61,18 +59,19 @@ class SigninViewModelTest {
   fun `overlapping loads issue only one query`() = runTest {
     Dispatchers.setMain(StandardTestDispatcher(testScheduler))
     var calls = 0
-    val api =
-        SigninApi {
-          object : SigninApiBackend {
-              override suspend fun getTodayClasses(): Result<SigninStatusResponse> {
-                calls++
-                return Result.success(SigninStatusResponse(code = 200, message = "ok", data = emptyList()))
-              }
-
-              override suspend fun performSignin(courseId: String) =
-                  Result.success(SigninActionResponse(200, true, "ok"))
-          }
+    val api = SigninApi {
+      object : SigninApiBackend {
+        override suspend fun getTodayClasses(): Result<SigninStatusResponse> {
+          calls++
+          return Result.success(
+              SigninStatusResponse(code = 200, message = "ok", data = emptyList())
+          )
         }
+
+        override suspend fun performSignin(courseId: String) =
+            Result.success(SigninActionResponse(200, true, "ok"))
+      }
+    }
     val viewModel = SigninViewModel(api)
 
     viewModel.loadTodayClasses()

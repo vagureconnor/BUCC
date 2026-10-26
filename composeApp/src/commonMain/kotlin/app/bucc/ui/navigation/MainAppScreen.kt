@@ -83,7 +83,10 @@ import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.plus
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 
@@ -287,6 +290,11 @@ fun MainAppScreen(
         )
       }
   DisposableEffect(homeworkViewModel) { onDispose { homeworkViewModel.close() } }
+  LifecycleResumeEffect(homeworkViewModel, sessionAvailable) {
+    homeworkViewModel.setSessionAvailable(sessionAvailable)
+    if (sessionAvailable) homeworkViewModel.onAppForegrounded()
+    onPauseOrDispose {}
+  }
   LaunchedEffect(sessionAvailable) {
     homeworkViewModel.setSessionAvailable(sessionAvailable)
     if (!sessionAvailable) {
@@ -354,8 +362,11 @@ fun MainAppScreen(
           !ygdkTermDone
 
   var selectedCourse by remember { mutableStateOf<CourseClass?>(null) }
+  var selectedCourseDate by remember { mutableStateOf<LocalDate?>(null) }
   val selectedSigninCourse =
-      selectedCourse?.let { course -> findSigninCourse(course, signinUiState.classes) }
+      selectedCourse
+          ?.takeIf { selectedCourseDate == homeNow.date }
+          ?.let { course -> findSigninCourse(course, signinUiState.classes, selectedCourseDate) }
   var selectedBykcCourseId by remember { mutableStateOf<Long?>(null) }
   var selectedBykcCourseSnapshot by remember { mutableStateOf<BykcCourseDto?>(null) }
   val bykcCoursesListState = rememberLazyListState()
@@ -995,6 +1006,12 @@ fun MainAppScreen(
                   onSigninTodoClick = { courseId -> signinViewModel.performSignin(courseId) },
                   onCourseClick = {
                     selectedCourse = it
+                    selectedCourseDate = homeNow.date
+                    navigateTo(AppScreen.COURSE_DETAIL)
+                  },
+                  onCourseOccurrenceClick = { occurrence ->
+                    selectedCourse = occurrence.course
+                    selectedCourseDate = occurrence.date
                     navigateTo(AppScreen.COURSE_DETAIL)
                   },
                   featureSections =
@@ -1146,8 +1163,19 @@ fun MainAppScreen(
                   onTermSelected = { scheduleViewModel.selectTerm(it) },
                   onWeekSelected = { scheduleViewModel.selectWeek(it) },
                   onNavigateBack = { navigateBack() },
-                  onCourseClick = {
-                    selectedCourse = it
+                  onCourseClick = { course ->
+                    selectedCourse = course
+                    selectedCourseDate =
+                        runCatching {
+                              val week = requireNotNull(scheduleUiState.selectedWeek)
+                              val weekday = requireNotNull(course.dayOfWeek)
+                              require(weekday in 1..7)
+                              LocalDate.parse(
+                                      week.startDate.substringBefore('T').substringBefore(' ')
+                                  )
+                                  .plus(weekday - 1, DateTimeUnit.DAY)
+                            }
+                            .getOrNull()
                     navigateTo(AppScreen.COURSE_DETAIL)
                   },
               )
@@ -1161,6 +1189,9 @@ fun MainAppScreen(
                     isLoadingSigninClasses = signinUiState.isLoading,
                     isSigningIn = signinUiState.signingInCourseId == selectedSigninCourse?.courseId,
                     signinResult = signinUiState.signinResult,
+                    signinError = signinUiState.error,
+                    onRetrySignin = { signinViewModel.ensureTodayLoaded(forceRefresh = true) },
+                    onOpenSigninList = { navigateTo(AppScreen.SIGNIN) },
                     onSigninClick = {
                       selectedSigninCourse?.let { signinViewModel.performSignin(it.courseId) }
                     },

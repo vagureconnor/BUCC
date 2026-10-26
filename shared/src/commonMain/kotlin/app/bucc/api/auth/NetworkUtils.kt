@@ -90,6 +90,8 @@ internal fun userFacingMessageForCode(code: String?, status: HttpStatusCode): St
     "libbook_error" -> "图书馆预约服务暂时不可用，请稍后重试"
     "libbook_timeout" -> "图书馆预约服务响应超时，请稍后重试"
     "libbook_seat_unavailable" -> "该座位已不可预约，请刷新后重试"
+    "libbook_booking_ended" -> "该预约已结束或已取消，无需取消"
+    "libbook_not_eligible" -> "当前不符合图书馆操作条件，请检查入馆记录、预约规则和操作权限"
     "libbook_not_found" -> "图书馆预约记录不存在或已失效，请刷新后重试"
     "ygdk_error" -> "阳光打卡服务暂时不可用，请稍后重试"
     "ygdk_timeout" -> "阳光打卡服务响应超时，请稍后重试"

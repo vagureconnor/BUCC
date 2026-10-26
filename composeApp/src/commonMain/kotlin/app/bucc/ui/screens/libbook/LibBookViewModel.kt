@@ -332,7 +332,7 @@ class LibBookViewModel(
 
   fun cancelBooking(bookingId: String) {
     val current = _uiState.value
-    if (current.cancelingBookingId == bookingId) return
+    if (current.cancelingBookingId != null) return
     val booking = current.bookings.bookings.firstOrNull { it.id == bookingId }
     val blockedMessage =
         booking?.cancelBlockedMessage() ?: if (bookingId.isBlank()) "预约记录不存在或已失效，请刷新后重试" else null
@@ -344,13 +344,14 @@ class LibBookViewModel(
     viewModelScope.launch {
       libBookApi
           .cancelBooking(bookingId)
-          .onSuccess {
+          .onSuccess { response ->
             _uiState.value =
                 _uiState.value.copy(
                     cancelingBookingId = null,
-                    actionMessage = it.message,
+                    actionMessage = response.message,
                 )
-            loadBookings(_uiState.value.bookings.page, _uiState.value.bookings.limit)
+            if (response.success)
+                loadBookings(_uiState.value.bookings.page, _uiState.value.bookings.limit)
           }
           .onFailure {
             _uiState.value =

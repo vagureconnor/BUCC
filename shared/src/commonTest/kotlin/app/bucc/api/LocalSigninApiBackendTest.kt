@@ -143,19 +143,28 @@ class LocalSigninApiBackendTest {
             respond(
                 content = ByteReadChannel(""),
                 status = HttpStatusCode.Found,
-                headers = headersOf(HttpHeaders.Location, "https://iclass.buaa.edu.cn:8346/?loginName=$loginName"),
+                headers =
+                    headersOf(
+                        HttpHeaders.Location,
+                        "https://iclass.buaa.edu.cn:8346/?loginName=$loginName",
+                    ),
             )
         request.url.encodedPath == "/app/user/login.action" ->
             respond(
-                content = ByteReadChannel("""{"STATUS":0,"result":{"id":"user-1","sessionId":"session-1"}}"""),
+                content =
+                    ByteReadChannel(
+                        """{"STATUS":0,"result":{"id":"user-1","sessionId":"session-1"}}"""
+                    ),
                 status = HttpStatusCode.OK,
-                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                headers =
+                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
             )
         request.url.encodedPath == "/app/course/get_stu_course_sched.action" ->
             respond(
                 content = ByteReadChannel("""{"STATUS":403,"ERRMSG":"课程查询失败"}"""),
                 status = HttpStatusCode.OK,
-                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                headers =
+                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
             )
         else -> error("Unexpected url: ${request.url}")
       }
@@ -177,16 +186,27 @@ class LocalSigninApiBackendTest {
             respond(
                 content = ByteReadChannel(""),
                 status = HttpStatusCode.Found,
-                headers = headersOf(HttpHeaders.Location, "https://iclass.buaa.edu.cn:8346/?loginName=$loginName"),
+                headers =
+                    headersOf(
+                        HttpHeaders.Location,
+                        "https://iclass.buaa.edu.cn:8346/?loginName=$loginName",
+                    ),
             )
         request.url.encodedPath == "/app/user/login.action" ->
             respond(
-                content = ByteReadChannel("""{"STATUS":0,"result":{"id":"user-1","sessionId":"session-1"}}"""),
+                content =
+                    ByteReadChannel(
+                        """{"STATUS":0,"result":{"id":"user-1","sessionId":"session-1"}}"""
+                    ),
                 status = HttpStatusCode.OK,
-                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                headers =
+                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
             )
         request.url.encodedPath == "/app/course/get_stu_course_sched.action" ->
-            respond(content = ByteReadChannel("unavailable"), status = HttpStatusCode.ServiceUnavailable)
+            respond(
+                content = ByteReadChannel("unavailable"),
+                status = HttpStatusCode.ServiceUnavailable,
+            )
         else -> error("Unexpected url: ${request.url}")
       }
     }
@@ -206,12 +226,19 @@ class LocalSigninApiBackendTest {
             respond(
                 content = ByteReadChannel(""),
                 status = HttpStatusCode.Found,
-                headers = headersOf(HttpHeaders.Location, "https://iclass.buaa.edu.cn:8346/?loginName=$loginName"),
+                headers =
+                    headersOf(
+                        HttpHeaders.Location,
+                        "https://iclass.buaa.edu.cn:8346/?loginName=$loginName",
+                    ),
             )
         request.url.encodedPath == "/app/user/login.action" -> {
           loginRequests++
           respond(
-              content = ByteReadChannel("""{"STATUS":0,"result":{"id":"user-1","sessionId":"session-$loginRequests"}}"""),
+              content =
+                  ByteReadChannel(
+                      """{"STATUS":0,"result":{"id":"user-1","sessionId":"session-$loginRequests"}}"""
+                  ),
               status = HttpStatusCode.OK,
               headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
           )

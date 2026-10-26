@@ -112,6 +112,9 @@ class CampusFinanceCaptchaUiTest {
 
     compose.onNodeWithText("网费").performClick()
     compose.waitUntil(5_000) { session.ensureCalls == 1 && loaders.internetCalls == 1 }
+    compose.waitUntil(5_000) {
+      compose.onAllNodesWithText("网费余额").fetchSemanticsNodes().size == 1
+    }
     compose.onAllNodesWithText("登录验证码").assertCountEquals(0)
     compose.onAllNodesWithText("网费信息尚未完成本次登录验证码验证。").assertCountEquals(0)
     compose.onNodeWithText("网费余额").assertIsDisplayed()

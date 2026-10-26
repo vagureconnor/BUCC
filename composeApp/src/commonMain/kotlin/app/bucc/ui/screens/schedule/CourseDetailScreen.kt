@@ -73,11 +73,11 @@ fun CourseDetailScreen(
               }
             }
             signinCourse == null -> {
-                Text(
-                    "今日没有找到与这门课匹配的可签到班次。",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                OutlinedButton(onClick = onOpenSigninList) { Text("查看今日课堂") }
+              Text(
+                  "今日没有找到与这门课匹配的可签到班次。",
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+              OutlinedButton(onClick = onOpenSigninList) { Text("查看今日课堂") }
             }
             signinCourse.signStatus == 1 ->
                 Text("本课程已签到。", color = MaterialTheme.colorScheme.primary)

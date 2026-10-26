@@ -570,67 +570,68 @@ class LocalLibBookApiBackendTest {
   }
 
   @Test
-  fun `cancel ended booking maps to not found without breaking later requests`() = runTest {
-    var loginUserCalls = 0
-    var cancelCalls = 0
-    var librariesCalls = 0
-    val engine = MockEngine { request ->
-      when (request.url.encodedPath) {
-        "/login" ->
-            respond(
-                content = ByteReadChannel.Empty,
-                status = HttpStatusCode.Found,
-                headers =
-                    headersOf(
-                        HttpHeaders.Location,
-                        "https://booking.lib.buaa.edu.cn/v4/login/cas?cas=cas-ended",
-                    ),
-            )
-        "/v4/login/user" -> {
-          loginUserCalls++
-          respondJson(
-              """
-              {
-                "code":0,
-                "data":{"member":{"token":"jwt-ended","name":"测试用户"}}
-              }
-              """
-                  .trimIndent()
-          )
+  fun `cancel ended booking is distinct from a missing record without breaking later requests`() =
+      runTest {
+        var loginUserCalls = 0
+        var cancelCalls = 0
+        var librariesCalls = 0
+        val engine = MockEngine { request ->
+          when (request.url.encodedPath) {
+            "/login" ->
+                respond(
+                    content = ByteReadChannel.Empty,
+                    status = HttpStatusCode.Found,
+                    headers =
+                        headersOf(
+                            HttpHeaders.Location,
+                            "https://booking.lib.buaa.edu.cn/v4/login/cas?cas=cas-ended",
+                        ),
+                )
+            "/v4/login/user" -> {
+              loginUserCalls++
+              respondJson(
+                  """
+                  {
+                    "code":0,
+                    "data":{"member":{"token":"jwt-ended","name":"测试用户"}}
+                  }
+                  """
+                      .trimIndent()
+              )
+            }
+            "/v4/space/cancel" -> {
+              cancelCalls++
+              respondJson("""{"code":2,"message":"预约已结束，不能取消"}""")
+            }
+            "/v4/space/pcTopFor" -> {
+              librariesCalls++
+              assertEquals("bearerjwt-ended", request.headers[HttpHeaders.Authorization])
+              respondJson(
+                  """
+                  {
+                    "code":1,
+                    "data":{"list":[{"id":"9","name":"学院路校区图书馆"}]}
+                  }
+                  """
+                      .trimIndent()
+              )
+            }
+            else -> error("Unexpected request: ${request.url}")
+          }
         }
-        "/v4/space/cancel" -> {
-          cancelCalls++
-          respondJson("""{"code":2,"message":"预约已结束，不能取消"}""")
-        }
-        "/v4/space/pcTopFor" -> {
-          librariesCalls++
-          assertEquals("bearerjwt-ended", request.headers[HttpHeaders.Authorization])
-          respondJson(
-              """
-              {
-                "code":1,
-                "data":{"list":[{"id":"9","name":"学院路校区图书馆"}]}
-              }
-              """
-                  .trimIndent()
-          )
-        }
-        else -> error("Unexpected request: ${request.url}")
+        installMockClient(engine)
+        val backend = LocalLibBookApiBackend()
+
+        val error = backend.cancelBooking("b-ended").exceptionOrNull()
+        val libraries = backend.getLibraries("2026-05-08").getOrThrow()
+
+        assertTrue(error is ApiCallException)
+        assertEquals("libbook_booking_ended", error.code)
+        assertEquals("学院路校区图书馆", libraries.single().name)
+        assertEquals(1, loginUserCalls)
+        assertEquals(1, cancelCalls)
+        assertEquals(1, librariesCalls)
       }
-    }
-    installMockClient(engine)
-    val backend = LocalLibBookApiBackend()
-
-    val error = backend.cancelBooking("b-ended").exceptionOrNull()
-    val libraries = backend.getLibraries("2026-05-08").getOrThrow()
-
-    assertTrue(error is ApiCallException)
-    assertEquals("libbook_not_found", error.code)
-    assertEquals("学院路校区图书馆", libraries.single().name)
-    assertEquals(1, loginUserCalls)
-    assertEquals(1, cancelCalls)
-    assertEquals(1, librariesCalls)
-  }
 
   private fun installMockClient(engine: MockEngine) {
     val factory = { followRedirects: Boolean ->

@@ -1,5 +1,7 @@
 package app.bucc
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -28,7 +30,17 @@ fun main(args: Array<String>) {
         icon = icon,
         state = rememberWindowState(width = 1100.dp, height = 760.dp),
     ) {
-      App()
+      DesktopApp()
     }
   }
+}
+
+@Composable
+private fun DesktopApp() {
+  LaunchedEffect(Unit) {
+    if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+      app.bucc.ui.screens.finance.initializePaymentBrowser()
+    }
+  }
+  App()
 }

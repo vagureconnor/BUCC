@@ -221,6 +221,17 @@ jobs:
           pattern: release-*-${{ github.sha }}
           path: release-assets
           merge-multiple: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install Android signature verifier
+        run: |
+          sdkmanager --install "build-tools;36.0.0"
+          echo "$ANDROID_HOME/build-tools/36.0.0" >> "$GITHUB_PATH"
       - name: Create unpublished draft and upload artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -228,5 +239,6 @@ jobs:
         run: |
           version="$(sed -n 's/^project.version=//p' gradle.properties)"
           tag="v$version"
+          python3 .github/scripts/create_release_manifest.py --directory release-assets --version "$version" --source-sha "$SOURCE_SHA" --allow-unsigned-harmony
           gh release create "$tag" --draft --target "$SOURCE_SHA" --title "BUCC $tag" --notes "Draft release built from $SOURCE_SHA. Real acceptance evidence is still required before publication."
-          gh release upload "$tag" release-assets/*
+          gh release upload "$tag" release-assets/BUCC-* release-assets/manifest.json

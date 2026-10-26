@@ -33,7 +33,7 @@ def normalize_fingerprint(value: str) -> str:
     return re.sub(r"[^0-9a-f]", "", value.lower())
 
 
-def signature_fingerprints(android_apk: Path, harmony_hap: Path) -> tuple[str, str]:
+def android_fingerprint(android_apk: Path) -> str:
     apksigner = shutil.which("apksigner")
     if not apksigner:
         raise GateError("找不到 apksigner，不能核验 Android APK 证书")
@@ -46,8 +46,10 @@ def signature_fingerprints(android_apk: Path, harmony_hap: Path) -> tuple[str, s
     match = re.search(r"Signer #\d+ certificate SHA-256 digest:\s*([0-9a-fA-F:]+)", android_result.stdout)
     if not match:
         raise GateError("apksigner 未输出 Android SHA-256 证书指纹")
-    android_fp = normalize_fingerprint(match.group(1))
+    return normalize_fingerprint(match.group(1))
 
+
+def harmony_fingerprint(harmony_hap: Path) -> str:
     tool = Path(os.environ.get("HAP_SIGN_TOOL_JAR", ""))
     java = shutil.which("java")
     openssl = shutil.which("openssl")
@@ -58,7 +60,7 @@ def signature_fingerprints(android_apk: Path, harmony_hap: Path) -> tuple[str, s
         profile = Path(temporary) / "profile.p7b"
         verify = subprocess.run(
             [java, "-jar", str(tool), "verify-app", "-inFile", str(harmony_hap),
-             "-outCertchain", str(cert), "-outProfile", str(profile)],
+             "-outCertChain", str(cert), "-outProfile", str(profile)],
             check=False, capture_output=True, text=True
         )
         if verify.returncode or not cert.is_file():
@@ -72,8 +74,11 @@ def signature_fingerprints(android_apk: Path, harmony_hap: Path) -> tuple[str, s
         match = re.search(r"SHA256 Fingerprint=([0-9a-fA-F:]+)", certificate.stdout)
         if not match:
             raise GateError("OpenSSL 未输出 Harmony SHA-256 证书指纹")
-        harmony_fp = normalize_fingerprint(match.group(1))
-    return android_fp, harmony_fp
+        return normalize_fingerprint(match.group(1))
+
+
+def signature_fingerprints(android_apk: Path, harmony_hap: Path) -> tuple[str, str]:
+    return android_fingerprint(android_apk), harmony_fingerprint(harmony_hap)
 
 
 def validate(directory: Path, version: str, source_sha: str, expected_android: str, expected_harmony: str, proof: Path | None) -> list[Path]:

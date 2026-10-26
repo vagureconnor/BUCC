@@ -36,7 +36,7 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :androidApp:assembleRelease --no-configuration-cache
+      - run: ./gradlew :androidApp:assembleRelease -Pbucc.android.unsignedRelease=true --no-configuration-cache
 
   ios:
     name: iOS unsigned device archive
@@ -86,6 +86,9 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew :composeApp:packageReleaseDmg
+      - name: Run shared and Compose business tests
+        if: matrix.arch == 'arm64'
+        run: ./gradlew :shared:jvmTest :composeApp:jvmTest --no-configuration-cache
 
   windows:
     name: Windows x64 Release build

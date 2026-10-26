@@ -1,244 +1,27 @@
-name: Stage Five Platform Draft Release
+name: Verify Local Five Platform Gate
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  statuses: read
 
 jobs:
-  validate-source:
-    name: Validate release source
-    outputs:
-      version: ${{ steps.version.outputs.value }}
+  verify-local-gate:
+    name: Verify existing local gate status
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - run: |
-          test "$GITHUB_REF" = refs/heads/main || { echo '::error::Dispatch this workflow from main only.'; exit 1; }
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: python3 .github/scripts/version_sync.py --check
-      - id: version
-        run: echo "value=$(sed -n 's/^project.version=//p' gradle.properties)" >> "$GITHUB_OUTPUT"
-
-  android:
-    name: Build signed Android APK
-    needs: validate-source
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-      - uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
-      - run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
-      - name: Decode Android upload keystore
+      - name: Verify the current commit SHA
         env:
-          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-        run: |
-          test -n "$SIGNING_KEY"
-          printf '%s' "$SIGNING_KEY" | base64 --decode > androidApp/release.jks
-      - name: Build signed APK
-        env:
-          SIGNING_KEY: release.jks
-          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-        run: |
-          test -n "$SIGNING_STORE_PASSWORD" && test -n "$SIGNING_KEY_ALIAS" && test -n "$SIGNING_KEY_PASSWORD"
-          ./gradlew :androidApp:assembleRelease --no-configuration-cache
-          mkdir -p release-assets
-          cp androidApp/build/outputs/apk/release/androidApp-release.apk "release-assets/BUCC-Android-v${{ needs.validate-source.outputs.version }}.apk"
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "release-assets/BUCC-Android-v${{ needs.validate-source.outputs.version }}.apk"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-android-${{ github.sha }}
-          path: release-assets/*
-          if-no-files-found: error
-
-  ios:
-    name: Build unsigned physical-device IPA
-    needs: validate-source
-    runs-on: macos-15
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-      - uses: gradle/actions/setup-gradle@v4
-      - name: Archive without Apple signing
-        run: |
-          xcodebuild archive -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Release \
-            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/BUCC-unsigned.xcarchive" \
-            -derivedDataPath "$RUNNER_TEMP/bucc-ios-derived-data" \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=
-      - name: Package unsigned IPA
-        run: |
-          mkdir -p release-assets
-          python3 script/package_unsigned_ipa.py "$RUNNER_TEMP/BUCC-unsigned.xcarchive/Products/Applications/BUCC.app" \
-            "release-assets/BUCC-iOS-v${{ needs.validate-source.outputs.version }}-unsigned.ipa"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-ios-${{ github.sha }}
-          path: release-assets/*
-          if-no-files-found: error
-
-  macos:
-    name: Build macOS (${{ matrix.arch }})
-    needs: validate-source
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-15-intel
-            arch: x86_64
-          - runner: macos-15
-            arch: arm64
-    runs-on: ${{ matrix.runner }}
-    env:
-      BUCC_TD_ARCH: ${{ matrix.arch }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-      - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :composeApp:packageReleaseDmg
-      - run: |
-          mkdir -p release-assets
-          shopt -s nullglob
-          files=(composeApp/build/compose/binaries/main-release/dmg/BUCC-*.dmg)
-          test "${#files[@]}" -eq 1
-          cp "${files[0]}" "release-assets/BUCC-macOS-${{ matrix.arch }}-v${{ needs.validate-source.outputs.version }}.dmg"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-macos-${{ matrix.arch }}-${{ github.sha }}
-          path: release-assets/*
-          if-no-files-found: error
-
-  windows:
-    name: Build Windows x64 installer
-    needs: validate-source
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.27.3'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.14'
-          architecture: x64
-      - uses: gradle/actions/setup-gradle@v4
-      - name: Package Windows installer
-        shell: pwsh
-        run: |
-          $env:BUCC_BASH = 'C:\Program Files\Git\bin\bash.exe'
-          $env:BUCC_GO = & 'C:\Program Files\Git\usr\bin\cygpath.exe' -u (Get-Command go).Source
-          $env:GOOS = 'windows'
-          $env:GOARCH = 'amd64'
-          .\gradlew.bat :composeApp:packageReleaseExe --no-configuration-cache
-          New-Item -ItemType Directory -Force release-assets | Out-Null
-          $exe = Get-ChildItem composeApp/build/compose/binaries/main-release/exe/BUCC-*.exe | Select-Object -First 1
-          if ($null -eq $exe) { throw 'Gradle produced no Windows installer.' }
-          Copy-Item $exe.FullName "release-assets/BUCC-Windows-v${{ needs.validate-source.outputs.version }}.exe"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-windows-${{ github.sha }}
-          path: release-assets/*
-          if-no-files-found: error
-
-  harmony:
-    name: Build unsigned Harmony HAP
-    needs: validate-source
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Require pinned official Harmony toolchain
-        run: |
-          echo '::error::Harmony release blocked: official 26.0.0.821 Command Line Tools distribution requires authenticated developer download-center cookies; no fixed public URL and SHA-256 were available. Local DevEco 26.0.0.851/Hvigor 6.26.8 is a distinct profile and is not substituted. No local signing is performed in CI.'
-          exit 1
-
-  draft-release:
-    name: Create draft release with build assets
-    if: always()
-    needs: [validate-source, android, ios, macos, windows, harmony]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Require every five-platform build to succeed
-        env:
-          SOURCE: ${{ needs.validate-source.result }}
-          ANDROID: ${{ needs.android.result }}
-          IOS: ${{ needs.ios.result }}
-          MACOS: ${{ needs.macos.result }}
-          WINDOWS: ${{ needs.windows.result }}
-          HARMONY: ${{ needs.harmony.result }}
-        run: |
-          for result in "$SOURCE" "$ANDROID" "$IOS" "$MACOS" "$WINDOWS" "$HARMONY"; do
-            if [ "$result" != success ]; then
-              echo "::error::Draft release refused: a required job was $result. Only success is accepted."
-              exit 1
-            fi
-          done
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: release-*-${{ github.sha }}
-          path: release-assets
-          merge-multiple: true
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-      - uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
-      - name: Install Android signature verifier
-        run: |
-          sdkmanager --install "build-tools;36.0.0"
-          echo "$ANDROID_HOME/build-tools/36.0.0" >> "$GITHUB_PATH"
-      - name: Create unpublished draft and upload artifacts
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
           SOURCE_SHA: ${{ github.sha }}
         run: |
-          version="$(sed -n 's/^project.version=//p' gradle.properties)"
-          tag="v$version"
-          python3 .github/scripts/create_release_manifest.py --directory release-assets --version "$version" --source-sha "$SOURCE_SHA" --allow-unsigned-harmony
-          gh release create "$tag" --draft --target "$SOURCE_SHA" --title "BUCC $tag" --notes "Draft release built from $SOURCE_SHA. Real acceptance evidence is still required before publication."
-          gh release upload "$tag" release-assets/BUCC-* release-assets/manifest.json
+          set -euo pipefail
+          state="$(gh api "repos/$REPOSITORY/commits/$SOURCE_SHA/status" --jq '.statuses | map(select(.context == "Local five platform gate")) | first | .state // "missing"')"
+          if [ "$state" != success ]; then
+            echo "::error::No successful Local five platform gate status exists for $SOURCE_SHA."
+            exit 1
+          fi
+          echo "Local five platform gate already succeeded for $SOURCE_SHA."
+          echo "This workflow does not build, sign, or publish a release."

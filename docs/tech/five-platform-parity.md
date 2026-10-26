@@ -73,3 +73,9 @@
 - JVM UI 测试和共享层 backend 测试可从 `composeApp/src/jvmTest/`、`composeApp/src/commonTest/`、`shared/src/commonTest/` 定位；它们只对实际运行过的目标和环境构成证据。
 - 图书馆只读数据检查（主 agent 提供，2026-10-26）：检查了 30 个分区。分区 `area_id=16`（一层东报刊阅览室）有 195 个座位，其中 194 个带有效地图坐标；其余 29 个分区坐标完整。旧逻辑会因这 1 个缺少几何的座位而让整图不可用。预约记录 10 笔均为已结束状态（上游状态 4/8），没有 active 预约；账号没有有效入馆记录，因此实时取消受上游门禁限制。没有尝试预约或取消，这些只读检查不证明写接口成功。
 - 当前文档任务没有执行 Gradle、iOS/Android/Harmony/macOS/Windows 安装运行、系统通知/日历写入或真实业务提交流程。编译成功（若后续由主 agent 执行）也只证明构建目标，不等于上述平台运行验收通过。
+
+## 本机验证与发布 gate
+
+GitHub `Source contract` workflow 只运行版本检查和 Python unittest，不安装原生 SDK/JDK，也不构建平台包。五个平台均使用开发者现有本机工具链构建；不额外下载 Harmony 工具、不设置 self-hosted runner。六个签名/完整性检查通过的资产以及 shared、Compose、Python 测试证据必须绑定同一个完整 commit SHA。只有这些检查都成功，本机 `script/local_platform_gate.py --report-status` 才会写入 GitHub 状态 `Local five platform gate`。测试 JSON 格式和运行命令见 `docs/tech/release-deployment.md`。
+
+手动运行 `.github/workflows/release.yml` 仅核对触发 SHA 是否已有成功的本机 gate 状态；该 workflow 不构建、签名、上传或公开 release。此构建 gate 不代替真实验收。正式公开发布仍要求 `.github/scripts/release_gate.py` 接收到该 SHA 对应的真实验收证明；没有实际验收证据时不得发布。

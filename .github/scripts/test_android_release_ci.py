@@ -20,37 +20,33 @@ class AndroidReleaseSigningContractTests(unittest.TestCase):
         for key in ("SIGNING_KEY", "SIGNING_STORE_PASSWORD", "SIGNING_KEY_ALIAS", "SIGNING_KEY_PASSWORD"):
             self.assertIn(key, build)
 
-    def test_ci_is_explicitly_unsigned_and_formal_release_stays_signed(self):
+    def test_ci_runs_only_source_contract_without_platform_toolchains(self):
         ci = (ROOT / ".github/workflows/test.yml").read_text(encoding="utf-8")
-        release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
-        self.assertIn(":androidApp:assembleRelease -Pbucc.android.unsignedRelease=true", ci)
-        self.assertIn(":shared:jvmTest :composeApp:jvmTest", ci)
-        self.assertIn("SIGNING_KEY: ${{ secrets.SIGNING_KEY }}", release)
-        self.assertIn("SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}", release)
-        self.assertIn("SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}", release)
-        self.assertIn("SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}", release)
-        self.assertIn("apksigner\" verify --verbose --print-certs", release)
-        self.assertNotIn("bucc.android.unsignedRelease", release)
+        self.assertIn("name: Source contract", ci)
+        self.assertIn("python3 .github/scripts/version_sync.py --check", ci)
+        self.assertIn("python3 -m unittest discover -s .github/scripts -p 'test_*.py'", ci)
+        self.assertNotIn("setup-java", ci)
+        self.assertNotIn("setup-android", ci)
+        self.assertNotIn("gradlew", ci)
+        self.assertEqual(1, len(re.findall(r"^  source-contract:$", ci, re.MULTILINE)))
 
-    def test_candidate_workflows_are_manual_signed_or_x64_artifact_only(self):
-        android = (ROOT / ".github/workflows/android-release-build.yml").read_text(encoding="utf-8")
-        windows = (ROOT / ".github/workflows/windows-build.yml").read_text(encoding="utf-8")
-        for workflow in (android, windows):
-            self.assertIn("workflow_dispatch:", workflow)
-            self.assertNotIn("  push:", workflow)
-            self.assertIn("ref: ${{ github.sha }}", workflow)
-            self.assertIn("source_sha", workflow)
-            self.assertIn("actions/upload-artifact@v4", workflow)
-            self.assertNotIn("gh release", workflow)
-            self.assertNotIn("softprops/action-gh-release", workflow)
-            self.assertNotIn("App Store", workflow)
-        for secret in ("SIGNING_KEY", "SIGNING_STORE_PASSWORD", "SIGNING_KEY_ALIAS", "SIGNING_KEY_PASSWORD"):
-            self.assertIn(f"secrets.{secret}", android)
-        self.assertIn("apksigner", android)
-        self.assertIn("$env:GOOS = 'windows'", windows)
-        self.assertIn("$env:GOARCH = 'amd64'", windows)
-        self.assertIn("$env:BUCC_BASH", windows)
-        self.assertIn("$env:BUCC_GO", windows)
+    def test_release_workflow_only_verifies_local_gate_status(self):
+        release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        self.assertIn("workflow_dispatch:", release)
+        self.assertIn("Local five platform gate", release)
+        self.assertIn("gh api", release)
+        self.assertIn("${{ github.sha }}", release)
+        self.assertNotIn("ios_only", release)
+        self.assertNotIn("gradlew", release)
+        self.assertNotIn("setup-java", release)
+        self.assertNotIn("SIGNING_KEY", release)
+        self.assertNotIn("gh release", release)
+        self.assertNotIn("upload-artifact", release)
+        self.assertIn("does not build, sign, or publish", release)
+
+    def test_cloud_platform_candidate_workflows_are_removed(self):
+        self.assertFalse((ROOT / ".github/workflows/android-release-build.yml").exists())
+        self.assertFalse((ROOT / ".github/workflows/windows-build.yml").exists())
 
 
 if __name__ == "__main__":

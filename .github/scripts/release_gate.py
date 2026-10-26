@@ -81,12 +81,22 @@ def signature_fingerprints(android_apk: Path, harmony_hap: Path) -> tuple[str, s
     return android_fingerprint(android_apk), harmony_fingerprint(harmony_hap)
 
 
-def validate(directory: Path, version: str, source_sha: str, expected_android: str, expected_harmony: str, proof: Path | None) -> list[Path]:
-    if proof is None or not proof.is_file():
-        raise GateError("真实验收证明缺失；不得公开发布")
-    proof_data = json.loads(proof.read_text(encoding="utf-8"))
-    if proof_data.get("accepted") is not True or proof_data.get("source_sha") != source_sha:
-        raise GateError("验收证明未批准该源码 SHA")
+def validate(
+    directory: Path,
+    version: str,
+    source_sha: str,
+    expected_android: str,
+    expected_harmony: str,
+    proof: Path | None,
+    *,
+    require_acceptance: bool = True,
+) -> list[Path]:
+    if require_acceptance:
+        if proof is None or not proof.is_file():
+            raise GateError("真实验收证明缺失；不得公开发布")
+        proof_data = json.loads(proof.read_text(encoding="utf-8"))
+        if proof_data.get("accepted") is not True or proof_data.get("source_sha") != source_sha:
+            raise GateError("验收证明未批准该源码 SHA")
     manifest_path = directory / "manifest.json"
     if not manifest_path.is_file():
         raise GateError("缺少 manifest.json")
@@ -99,6 +109,11 @@ def validate(directory: Path, version: str, source_sha: str, expected_android: s
     platforms = [item.get("platform") for item in entries]
     if len(platforms) != len(set(platforms)):
         raise GateError("重复资产平台")
+    missing = REQUIRED - set(platforms)
+    if missing:
+        raise GateError("缺少平台资产：" + ", ".join(sorted(missing)))
+    if len(platforms) != len(REQUIRED) or set(platforms) != REQUIRED:
+        raise GateError("正式发布必须恰好包含六个平台资产")
     by_platform = {}
     resolved = []
     for item in entries:
@@ -112,6 +127,12 @@ def validate(directory: Path, version: str, source_sha: str, expected_android: s
         relative = Path(item.get("file", ""))
         if not relative.name or relative.is_absolute() or ".." in relative.parts:
             raise GateError(f"{platform} 文件路径无效")
+        if (
+            len(relative.parts) != 1
+            or relative.name in {"manifest.json", "acceptance-proof.json"}
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+-]*", relative.name)
+        ):
+            raise GateError(f"{platform} 资产必须使用独立的普通文件名")
         artifact = directory / relative
         if not artifact.is_file():
             raise GateError(f"{platform} 缺少资产文件：{relative}")
@@ -135,6 +156,66 @@ def validate(directory: Path, version: str, source_sha: str, expected_android: s
     return resolved
 
 
+def publish_release(
+    directory: Path,
+    version: str,
+    source_sha: str,
+    expected_android: str,
+    expected_harmony: str,
+    proof: Path,
+) -> list[Path]:
+    if proof.name != "acceptance-proof.json":
+        raise GateError("正式发布验收证明文件名必须为 acceptance-proof.json")
+    assets = validate(directory, version, source_sha, expected_android, expected_harmony, proof)
+    filenames = [asset.name for asset in assets]
+    if len(filenames) != len(set(filenames)):
+        raise GateError("平台资产文件名重复")
+    manifest = directory / "manifest.json"
+    tag = f"v{version}"
+    gh = shutil.which("gh")
+    if not gh:
+        raise GateError("gh CLI is required to publish")
+
+    def run_gh(*arguments: str) -> str:
+        result = subprocess.run([gh, *arguments], check=False, capture_output=True, text=True)
+        if result.returncode:
+            operation = " ".join(arguments[:2])
+            raise GateError(f"GitHub CLI {operation} 操作失败；上传或核验未完成，draft 保持未发布")
+        return result.stdout
+
+    try:
+        draft = json.loads(run_gh("release", "view", tag, "--json", "isDraft,targetCommitish,assets"))
+    except json.JSONDecodeError as error:
+        raise GateError("无法读取 GitHub draft 信息；draft 保持未发布") from error
+    if draft.get("isDraft") is not True or draft.get("targetCommitish") != source_sha:
+        raise GateError("GitHub draft 必须是同一待验收源码 SHA 的未发布草稿")
+    allowed_names = set(filenames) | {manifest.name, proof.name}
+    existing_assets = draft.get("assets", [])
+    if not isinstance(existing_assets, list) or any(
+        not isinstance(asset, dict) or asset.get("name") not in allowed_names for asset in existing_assets
+    ):
+        raise GateError("GitHub draft 含有未声明资产；draft 保持未发布")
+
+    run_gh("release", "upload", tag, *(str(path) for path in [*assets, manifest, proof]), "--clobber")
+    with tempfile.TemporaryDirectory(prefix="bucc-release-remote-verify-") as temporary:
+        download = ["release", "download", tag, "--dir", temporary]
+        for filename in [*filenames, manifest.name, proof.name]:
+            download.extend(["--pattern", filename])
+        run_gh(*download)
+        downloaded = Path(temporary)
+        validate(
+            downloaded,
+            version,
+            source_sha,
+            expected_android,
+            expected_harmony,
+            downloaded / proof.name,
+        )
+
+    run_gh("release", "edit", tag, "--draft=false", "--latest")
+    return assets
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--directory", type=Path, required=True)
@@ -143,35 +224,29 @@ def main() -> int:
     parser.add_argument("--expected-android-fingerprint", default="")
     parser.add_argument("--expected-harmony-fingerprint", default="")
     parser.add_argument("--acceptance-proof", type=Path)
-    parser.add_argument("--publish", action="store_true", help="publish the matching GitHub draft after every check succeeds")
+    parser.add_argument("--publish", action="store_true", help="replace and re-verify the matching draft assets before publication")
     args = parser.parse_args()
     try:
-        assets = validate(args.directory, args.version, args.source_sha, args.expected_android_fingerprint, args.expected_harmony_fingerprint, args.acceptance_proof)
+        if args.publish:
+            if args.acceptance_proof is None:
+                raise GateError("真实验收证明缺失；不得公开发布")
+            assets = publish_release(
+                args.directory,
+                args.version,
+                args.source_sha,
+                args.expected_android_fingerprint,
+                args.expected_harmony_fingerprint,
+                args.acceptance_proof,
+            )
+        else:
+            assets = validate(args.directory, args.version, args.source_sha, args.expected_android_fingerprint, args.expected_harmony_fingerprint, args.acceptance_proof)
     except (GateError, OSError, json.JSONDecodeError) as error:
         print(f"Release blocked: {error}", file=sys.stderr)
         return 1
     if not args.publish:
         print(f"Verified {len(assets)} release assets. Draft remains unpublished; pass --publish after review to publish.")
         return 0
-    gh = shutil.which("gh")
-    if not gh:
-        print("Release blocked: gh CLI is required to publish.", file=sys.stderr)
-        return 1
-    tag = f"v{args.version}"
-    try:
-        status = subprocess.run([gh, "release", "view", tag, "--json", "isDraft,targetCommitish"], check=False, capture_output=True, text=True)
-        if status.returncode:
-            raise GateError("找不到对应 GitHub draft release")
-        draft = json.loads(status.stdout)
-        if draft.get("isDraft") is not True or draft.get("targetCommitish") != args.source_sha:
-            raise GateError("GitHub draft 不是待验收源码 SHA 对应的草稿")
-        publish = subprocess.run([gh, "release", "edit", tag, "--draft=false", "--latest"], check=False)
-        if publish.returncode:
-            raise GateError("GitHub 未能公开 draft release")
-    except (OSError, json.JSONDecodeError, GateError) as error:
-        print(f"Release blocked: {error}", file=sys.stderr)
-        return 1
-    print(f"Published {tag} from {args.source_sha}.")
+    print(f"Published v{args.version} from {args.source_sha}.")
     return 0
 
 

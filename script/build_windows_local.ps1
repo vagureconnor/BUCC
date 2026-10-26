@@ -71,11 +71,24 @@ foreach ($name in @('JAVA_HOME', 'BUCC_BASH', 'BUCC_GO', 'BUCC_TD_PACKAGING_PYTH
     $oldEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
 
-$javaInfo = (& $JavaExe -XshowSettings:properties -version 2>&1 | Out-String)
+# Windows PowerShell 5 treats normal native stderr (including java -version) as
+# NativeCommandError. Capture it without terminating, then check the exit code.
+function Read-NativeInfo([string]$Executable, [string[]]$Arguments) {
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $text = (& $Executable @Arguments 2>&1 | Out-String)
+        $nativeExit = $LASTEXITCODE
+    }
+    finally { $ErrorActionPreference = $previousPreference }
+    if ($nativeExit -ne 0) { throw "Local tool failed: $Executable (exit $nativeExit)." }
+    return $text
+}
+$javaInfo = Read-NativeInfo $JavaExe @('-XshowSettings:properties', '-version')
 if ($LASTEXITCODE -ne 0 -or $javaInfo -notmatch 'os\.arch\s*=\s*amd64' -or $javaInfo -notmatch 'version "21([.]|")') { throw 'The configured runtime must be a working x64 JDK 21.' }
 $pythonInfo = & $PythonExe -c 'import platform,sys,sysconfig; print(f"{sys.version_info.major}.{sys.version_info.minor}|{sysconfig.get_platform()}|{platform.machine()}")'
 if ($LASTEXITCODE -ne 0 -or $pythonInfo.Trim() -ne '3.14|win-amd64|AMD64') { throw 'The configured Python must be Python 3.14 x64.' }
-$goInfo = & $GoExe version 2>&1 | Out-String
+$goInfo = Read-NativeInfo $GoExe @('version')
 if ($LASTEXITCODE -ne 0 -or $goInfo -notmatch 'windows/amd64') { throw 'The configured Go compiler must target Windows x64.' }
 if ($goInfo -notmatch 'go(?<major>[0-9]+)\.(?<minor>[0-9]+)\.(?<patch>[0-9]+)') { throw 'Could not read the Go compiler version.' }
 $goVersion = [Version]("$($Matches.major).$($Matches.minor).$($Matches.patch)")
@@ -133,10 +146,11 @@ try {
     if (-not (Test-Path -LiteralPath $gradle -PathType Leaf)) { throw 'Gradle wrapper is missing from the verified source archive.' }
     Push-Location $root
     try {
+        $ErrorActionPreference = 'Continue'
         & $gradle ':composeApp:packageReleaseExe' '--no-configuration-cache' '--console=plain' '--max-workers=2' 2>&1 | Tee-Object -FilePath $buildLog
         $gradleExit = $LASTEXITCODE
     }
-    finally { Pop-Location }
+    finally { $ErrorActionPreference = 'Stop'; Pop-Location }
     if ($gradleExit -ne 0) { throw 'Windows Release EXE build failed; see sanitized build.log.' }
 
     & $PythonExe $VerifierScript @treeVerifyArgs

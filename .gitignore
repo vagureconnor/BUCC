@@ -99,7 +99,6 @@ wiki/
 ktfmt-0.61-with-dependencies.jar
 CLAUDE.md
 .claude
-AGENTS.md
 todo.md
 .worktrees/
 .playwright-cli/

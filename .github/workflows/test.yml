@@ -62,7 +62,7 @@ jobs:
       - name: Package unsigned IPA
         run: |
           mkdir -p build/ios-release
-          app="$RUNNER_TEMP/BUCC-unsigned.xcarchive/Products/Applications/iosApp.app"
+          app="$RUNNER_TEMP/BUCC-unsigned.xcarchive/Products/Applications/BUCC.app"
           python3 script/package_unsigned_ipa.py "$app" build/ios-release/BUCC-iOS-v2.0.1-unsigned.ipa
 
   macos:

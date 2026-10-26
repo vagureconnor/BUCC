@@ -92,7 +92,7 @@ jobs:
       - name: Package unsigned IPA
         run: |
           mkdir -p release-assets
-          python3 script/package_unsigned_ipa.py "$RUNNER_TEMP/BUCC-unsigned.xcarchive/Products/Applications/iosApp.app" \
+          python3 script/package_unsigned_ipa.py "$RUNNER_TEMP/BUCC-unsigned.xcarchive/Products/Applications/BUCC.app" \
             "release-assets/BUCC-iOS-v${{ needs.validate-source.outputs.version }}-unsigned.ipa"
       - uses: actions/upload-artifact@v4
         with:

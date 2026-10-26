@@ -25,7 +25,7 @@ class WindowsBuildContractTests(unittest.TestCase):
                         "$env:GOARCH = 'amd64'", "$env:WIX = $WixHome", "SetEnvironmentVariable($name, $oldEnvironment[$name], 'Process')"):
             self.assertIn(setting, self.script)
         self.assertIn('working x64 JDK', self.script)
-        self.assertIn("'3.14|win-amd64|AMD64'", self.script)
+        self.assertIn("'3.14|win-amd64|64'", self.script)
 
     def test_build_command_and_artifact_inspection_are_pinned(self):
         for required in (':composeApp:packageReleaseExe', '--no-configuration-cache', '--console=plain',

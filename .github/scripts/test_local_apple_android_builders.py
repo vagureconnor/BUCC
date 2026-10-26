@@ -123,6 +123,8 @@ class AppleBuilderTests(unittest.TestCase):
     def test_apple_script_supports_rosetta_architecture_and_checks_target_runtimes(self):
         script = (ROOT / 'script/build_apple_local.sh').read_text()
         self.assertIn('macos-x86_64', script)
+        self.assertIn('-derivedDataPath "$output_dir/DerivedData"', script)
+        self.assertNotIn('build/ios-local-derived', script)
         self.assertIn('arch -x86_64', script)
         self.assertIn('Target JDK architecture mismatch', script)
         self.assertIn('Target Python architecture mismatch', script)

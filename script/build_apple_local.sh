@@ -38,7 +38,7 @@ if [[ "$platform" == ios ]]; then
   archive="$output_dir/BUCC.xcarchive"
   xcodebuild archive -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Release \
     -destination 'generic/platform=iOS' -archivePath "$archive" \
-    -derivedDataPath "$repo_root/build/ios-local-derived" \
+    -derivedDataPath "$output_dir/DerivedData" \
     CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=
   python3 script/package_unsigned_ipa.py "$archive/Products/Applications/BUCC.app" "$artifact"
   python3 - "$repo_root/.github/scripts" "$artifact" "$version" "$version_code" <<'PY'

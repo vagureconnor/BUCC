@@ -9,6 +9,8 @@ import re
 import shutil
 import subprocess
 import sys
+import hashlib
+import datetime as dt
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,7 +22,7 @@ STATUS_CONTEXT = "Local five platform gate"
 REQUIRED_TESTS = ("shared", "compose", "python")
 
 
-def validate_test_evidence(path: Path, source_sha: str) -> None:
+def validate_test_evidence(path: Path, source_sha: str, expected_tree: str | None = None) -> None:
     if not re.fullmatch(r"[0-9a-f]{40,64}", source_sha):
         raise GateError("源码 SHA 格式无效")
     try:
@@ -29,17 +31,87 @@ def validate_test_evidence(path: Path, source_sha: str) -> None:
         raise GateError(f"测试证据缺失或 JSON 无效：{error}") from error
     if not isinstance(evidence, dict) or evidence.get("source_sha") != source_sha:
         raise GateError("测试证据源码 SHA 不匹配")
+    source_tree = evidence.get("source_tree")
+    if not isinstance(source_tree, str) or not re.fullmatch(r"[0-9a-f]{40}", source_tree):
+        raise GateError("测试证据 source_tree 格式无效")
+    if expected_tree is not None and source_tree != expected_tree:
+        raise GateError("测试证据 source_tree 与当前源码不匹配")
+    if type(evidence.get("schema")) is not int or evidence["schema"] != 1 or evidence.get("status") != "success" or evidence.get("clean_checkout") is not True:
+        raise GateError("测试证据必须来自 clean checkout 且全部成功")
+    if evidence.get("source_sha_end") != source_sha or evidence.get("source_tree_end") != source_tree:
+        raise GateError("测试运行期间源码 SHA/tree 发生变化")
+    _validate_timestamp(evidence.get("started_at"))
+    _validate_timestamp(evidence.get("finished_at"))
     suites = evidence.get("tests")
-    if not isinstance(suites, dict):
-        raise GateError("测试证据缺少 tests 对象")
+    if not isinstance(suites, dict) or set(suites) != set(REQUIRED_TESTS):
+        raise GateError("测试证据必须包含 shared、compose、python 三个套件")
     for name in REQUIRED_TESTS:
         result = suites.get(name)
         if not isinstance(result, dict):
             raise GateError(f"测试证据缺少 {name} 结果")
-        if result.get("source_sha") != source_sha:
+        if result.get("source_sha") != source_sha or result.get("source_tree") != source_tree:
             raise GateError(f"{name} 测试证据源码 SHA 不匹配")
-        if result.get("status") != "success" or type(result.get("failures")) is not int or result["failures"] != 0:
-            raise GateError(f"{name} 测试未成功或 failures 不为 0")
+        if result.get("status") != "success":
+            raise GateError(f"{name} 测试未成功")
+        if type(result.get("exit_code")) is not int or result["exit_code"] != 0:
+            raise GateError(f"{name} 测试命令未成功退出")
+        for count in ("tests", "failures", "errors", "skipped"):
+            if type(result.get(count)) is not int or result[count] < 0:
+                raise GateError(f"{name} 测试 {count} 数量无效")
+        if result["tests"] == 0 or result["failures"] or result["errors"]:
+            raise GateError(f"{name} 测试零用例、存在 failure 或 error")
+        command = result.get("command")
+        if not isinstance(command, list) or not command or not all(isinstance(part, str) for part in command):
+            raise GateError(f"{name} 缺少真实测试命令")
+        if name in {"shared", "compose"}:
+            expected_command = [
+                "./gradlew", "--no-daemon", "--max-workers=2", "--rerun-tasks",
+                "--no-configuration-cache", "spotlessCheck", ":shared:jvmTest", ":composeApp:jvmTest",
+            ]
+            if command != expected_command:
+                raise GateError(f"{name} 证据没有记录约定的 Gradle 测试命令")
+        elif len(command) < 5 or command[1:5] != ["-m", "unittest", "discover", "-s"] or command[5:] != [".github/scripts"]:
+            raise GateError("python 证据没有记录 unittest discover 命令")
+        log_name = result.get("log_file")
+        if not isinstance(log_name, str):
+            raise GateError(f"{name} 测试日志路径无效")
+        log_relative = Path(log_name)
+        if log_relative.is_absolute() or ".." in log_relative.parts or len(log_relative.parts) != 1:
+            raise GateError(f"{name} 测试日志路径无效")
+        log = path.parent / log_relative
+        if not log.is_file() or not re.fullmatch(r"[0-9a-f]{64}", str(result.get("log_sha256", ""))):
+            raise GateError(f"{name} 测试日志缺失或哈希格式无效")
+        digest = hashlib.sha256(log.read_bytes()).hexdigest()
+        if digest != result["log_sha256"]:
+            raise GateError(f"{name} 测试日志 SHA-256 不匹配")
+        _validate_timestamp(result.get("started_at"))
+        _validate_timestamp(result.get("finished_at"))
+
+
+def _validate_timestamp(value: object) -> None:
+    if not isinstance(value, str):
+        raise GateError("测试证据缺少时间戳")
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise GateError("测试证据时间戳格式无效") from None
+    if parsed.tzinfo is None:
+        raise GateError("测试证据时间戳必须包含时区")
+
+
+def current_checkout() -> tuple[str, str, bool]:
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, check=False, capture_output=True, text=True)
+    tree = subprocess.run(["git", "rev-parse", "HEAD^{tree}"], cwd=ROOT, check=False, capture_output=True, text=True)
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if sha.returncode or tree.returncode or status.returncode:
+        raise GateError("无法读取本机 clean checkout 状态")
+    return sha.stdout.strip(), tree.stdout.strip(), not status.stdout.strip()
 
 
 def validate_local_gate(
@@ -49,8 +121,9 @@ def validate_local_gate(
     expected_android: str,
     expected_harmony: str,
     test_report: Path,
+    source_tree: str | None = None,
 ) -> list[Path]:
-    validate_test_evidence(test_report, source_sha)
+    validate_test_evidence(test_report, source_sha, source_tree)
     try:
         manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
@@ -82,7 +155,13 @@ def run_local_gate(
     *,
     report_status: bool = False,
     repository: str | None = None,
+    source_tree: str | None = None,
 ) -> list[Path]:
+    current_sha, current_tree, clean = current_checkout()
+    if current_sha != source_sha or not clean:
+        raise GateError("本机平台 gate 要求当前 checkout SHA 匹配且工作树 clean")
+    if source_tree is not None and source_tree != current_tree:
+        raise GateError("本机当前 source_tree 与预期不匹配")
     assets = validate_local_gate(
         directory,
         version,
@@ -90,10 +169,15 @@ def run_local_gate(
         expected_android,
         expected_harmony,
         test_report,
+        current_tree,
     )
     if report_status:
         if not repository:
             raise GateError("报告状态时必须提供仓库 owner/repository")
+        current_sha, current_tree, clean = current_checkout()
+        if current_sha != source_sha or not clean:
+            raise GateError("报告成功状态要求当前 checkout SHA 匹配且工作树 clean")
+        validate_test_evidence(test_report, source_sha, current_tree)
         publish_status(repository, source_sha)
     return assets
 
@@ -145,11 +229,11 @@ def main() -> int:
     try:
         if args.report_status and not args.repository:
             raise GateError("--report-status 必须同时提供 --repository owner/repository")
-        head = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=ROOT, check=False, capture_output=True, text=True
-        )
-        if head.returncode or head.stdout.strip() != args.source_sha:
+        current_sha, current_tree, clean = current_checkout()
+        if current_sha != args.source_sha:
             raise GateError("指定源码 SHA 与本机当前 HEAD 不完全一致")
+        if not clean:
+            raise GateError("写入 Local five platform gate 状态要求 clean checkout")
         assets = validate_local_gate(
             args.directory,
             read_version(ROOT),
@@ -157,6 +241,7 @@ def main() -> int:
             args.expected_android_fingerprint,
             args.expected_harmony_fingerprint,
             args.tests_report,
+            current_tree,
         )
         if args.report_status:
             publish_status(args.repository, args.source_sha)

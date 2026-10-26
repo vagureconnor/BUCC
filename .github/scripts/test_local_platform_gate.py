@@ -39,18 +39,45 @@ class LocalPlatformGateTests(unittest.TestCase):
             encoding="utf-8",
         )
         evidence = {
+            "schema": 1,
             "source_sha": source_sha,
+            "source_tree": "b" * 40,
+            "source_sha_end": source_sha,
+            "source_tree_end": "b" * 40,
+            "status": "success",
+            "clean_checkout": True,
+            "started_at": "2026-10-26T12:00:00Z",
+            "finished_at": "2026-10-26T12:10:00Z",
             "tests": {
-                name: {"source_sha": source_sha, "status": "success", "failures": 0}
+                name: {
+                    "source_sha": source_sha,
+                    "source_tree": "b" * 40,
+                    "status": "success",
+                    "exit_code": 0,
+                    "tests": 2,
+                    "failures": 0,
+                    "errors": 0,
+                    "skipped": 0,
+                    "command": ([
+                        "./gradlew", "--no-daemon", "--max-workers=2", "--rerun-tasks",
+                        "--no-configuration-cache", "spotlessCheck", ":shared:jvmTest", ":composeApp:jvmTest",
+                    ] if name in {"shared", "compose"} else ["python", "-m", "unittest", "discover", "-s", ".github/scripts"]),
+                    "log_file": f"{name}.log",
+                    "log_sha256": hashlib.sha256(f"{name} log".encode()).hexdigest(),
+                    "started_at": "2026-10-26T12:00:00Z",
+                    "finished_at": "2026-10-26T12:10:00Z",
+                }
                 for name in ("shared", "compose", "python")
             },
         }
         report = directory / "tests.json"
         report.write_text(json.dumps(evidence), encoding="utf-8")
+        for name in ("shared", "compose", "python"):
+            (directory / f"{name}.log").write_text(f"{name} log", encoding="utf-8")
         return version, source_sha, report
 
     def run_gate(self, directory, version, source_sha, report, report_status=False):
-        with patch("release_gate.signature_fingerprints", return_value=("a" * 64, "b" * 64)), patch("release_gate.validate_package_contents"):
+        with patch("release_gate.signature_fingerprints", return_value=("a" * 64, "b" * 64)), patch("release_gate.validate_package_contents"), patch("local_platform_gate.current_checkout", return_value=(source_sha, "b" * 40, True)):
             return run_local_gate(
                 directory,
                 version,
@@ -129,6 +156,27 @@ class LocalPlatformGateTests(unittest.TestCase):
                 with self.assertRaisesRegex(GateError, "本机"):
                     publish_status("example/BUCC", "a" * 40)
             run.assert_not_called()
+
+    def test_test_evidence_requires_source_tree_clean_checkout_and_unmodified_logs(self):
+        for mutate in ("tree", "dirty", "log", "zero-tests", "command"):
+            with self.subTest(mutate=mutate), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                version, source_sha, report = self.fixture(directory)
+                evidence = json.loads(report.read_text())
+                if mutate == "tree":
+                    evidence["tests"]["shared"]["source_tree"] = "c" * 40
+                elif mutate == "dirty":
+                    evidence["clean_checkout"] = False
+                elif mutate == "log":
+                    (directory / "shared.log").write_text("tampered")
+                elif mutate == "command":
+                    evidence["tests"]["shared"]["command"] = ["echo", "success"]
+                else:
+                    evidence["tests"]["python"]["tests"] = 0
+                report.write_text(json.dumps(evidence), encoding="utf-8")
+                with patch("release_gate.signature_fingerprints", return_value=("a" * 64, "b" * 64)), patch("release_gate.validate_package_contents"):
+                    with self.assertRaises(GateError):
+                        self.run_gate(directory, version, source_sha, report, report_status=True)
 
 
 if __name__ == "__main__":

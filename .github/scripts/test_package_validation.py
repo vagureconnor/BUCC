@@ -10,8 +10,14 @@ from unittest.mock import patch
 from package_validation import PackageError, validate_ios_ipa, validate_macos_dmg, validate_windows_exe
 
 
-def macho(cpu_type: int) -> bytes:
-    return struct.pack("<IiiIIIII", 0xFEEDFACF, cpu_type, 0, 2, 0, 0, 0, 0)
+def macho(cpu_type: int, platform: int = 2, code_signature_size: int = 0) -> bytes:
+    if code_signature_size:
+        header = struct.pack("<IiiIIIII", 0xFEEDFACF, cpu_type, 0, 2, 2, 40, 0, 0)
+        build = struct.pack("<IIIIII", 0x32, 24, platform, 0xD0000, 0xD0000, 0)
+        signature = struct.pack("<IIII", 0x1D, 16, 0, code_signature_size)
+        return header + build + signature
+    header = struct.pack("<IiiIIIII", 0xFEEDFACF, cpu_type, 0, 2, 1, 24, 0, 0)
+    return header + struct.pack("<IIIIII", 0x32, 24, platform, 0xD0000, 0xD0000, 0)
 
 
 def app_contents(root: Path, cpu_type: int) -> Path:
@@ -65,6 +71,33 @@ class PackageValidationTests(unittest.TestCase):
             with self.assertRaisesRegex(PackageError, "arm64"):
                 validate_ios_ipa(wrong_arch, "2.0.1", 201)
 
+            for name, binary, message in (
+                ("simulator.ipa", macho(0x0100000C, platform=7), "实体 iOS"),
+                ("signed.ipa", macho(0x0100000C, code_signature_size=24), "embedded code signature"),
+            ):
+                package = Path(temporary) / name
+                with zipfile.ZipFile(package, "w") as archive:
+                    archive.writestr("Payload/BUCC.app/Info.plist", plistlib.dumps({
+                        "CFBundleExecutable": "BUCC",
+                        "CFBundleShortVersionString": "2.0.1",
+                        "CFBundleVersion": "201",
+                    }))
+                    archive.writestr("Payload/BUCC.app/BUCC", binary)
+                with self.assertRaisesRegex(PackageError, message):
+                    validate_ios_ipa(package, "2.0.1", 201)
+            malformed = bytearray(macho(0x0100000C))
+            struct.pack_into("<I", malformed, 20, 0xFFFFFFFF)
+            malformed_ipa = Path(temporary) / "malformed.ipa"
+            with zipfile.ZipFile(malformed_ipa, "w") as archive:
+                archive.writestr("Payload/BUCC.app/Info.plist", plistlib.dumps({
+                    "CFBundleExecutable": "BUCC",
+                    "CFBundleShortVersionString": "2.0.1",
+                    "CFBundleVersion": "201",
+                }))
+                archive.writestr("Payload/BUCC.app/BUCC", malformed)
+            with self.assertRaisesRegex(PackageError, "load commands"):
+                validate_ios_ipa(malformed_ipa, "2.0.1", 201)
+
     def test_ios_rejects_code_signature_and_embedded_profile(self):
         for forbidden in ("_CodeSignature/CodeResources", "embedded.mobileprovision"):
             with self.subTest(forbidden=forbidden), tempfile.TemporaryDirectory() as temporary:
@@ -79,6 +112,20 @@ class PackageValidationTests(unittest.TestCase):
                     archive.writestr(f"Payload/BUCC.app/{forbidden}", b"signature")
                 with self.assertRaisesRegex(PackageError, "签名"):
                     validate_ios_ipa(path, "2.0.1", 201)
+
+    def test_ios_rejects_embedded_signature_in_nested_framework(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "nested.ipa"
+            with zipfile.ZipFile(path, "w") as archive:
+                archive.writestr("Payload/BUCC.app/Info.plist", plistlib.dumps({
+                    "CFBundleExecutable": "BUCC",
+                    "CFBundleShortVersionString": "2.0.1",
+                    "CFBundleVersion": "201",
+                }))
+                archive.writestr("Payload/BUCC.app/BUCC", macho(0x0100000C))
+                archive.writestr("Payload/BUCC.app/Frameworks/Payment.framework/Payment", macho(0x0100000C, code_signature_size=24))
+            with self.assertRaisesRegex(PackageError, "embedded code signature"):
+                validate_ios_ipa(path, "2.0.1", 201)
 
     def test_macos_mounts_readonly_checks_actual_arch_and_adhoc_signature(self):
         with tempfile.TemporaryDirectory() as temporary:

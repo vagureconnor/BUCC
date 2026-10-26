@@ -37,7 +37,7 @@ def _parse_info(data: bytes, version: str, version_code: int) -> str:
         raise PackageError("应用 Info.plist 无法读取") from None
 
 
-def _macho_architectures(data: bytes) -> set[int]:
+def _macho_slices(data: bytes) -> list[tuple[int, bytes]]:
     if len(data) < 8:
         raise PackageError("主程序不是有效 Mach-O")
     magic = data[:4]
@@ -46,7 +46,8 @@ def _macho_architectures(data: bytes) -> set[int]:
         b"\xfe\xed\xfa\xcf": ">",  # MH_CIGAM_64, big endian
     }
     if magic in thin:
-        return {struct.unpack_from(thin[magic] + "i", data, 4)[0]}
+        _validate_macho_load_commands(data, thin[magic])
+        return [(struct.unpack_from(thin[magic] + "i", data, 4)[0], data)]
     fat = {
         b"\xca\xfe\xba\xbe": (">", 20),
         b"\xbe\xba\xfe\xca": ("<", 20),
@@ -59,13 +60,80 @@ def _macho_architectures(data: bytes) -> set[int]:
     count = struct.unpack_from(endian + "I", data, 4)[0]
     if count < 1 or count > 32 or len(data) < 8 + count * record_size:
         raise PackageError("Fat Mach-O 架构表无效")
-    return {struct.unpack_from(endian + "i", data, 8 + index * record_size)[0] for index in range(count)}
+    slices = []
+    for index in range(count):
+        entry = 8 + index * record_size
+        cpu_type = struct.unpack_from(endian + "i", data, entry)[0]
+        if record_size == 20:
+            offset, size = struct.unpack_from(endian + "II", data, entry + 8)
+        else:
+            offset, size = struct.unpack_from(endian + "QQ", data, entry + 8)
+        if size < 32 or offset + size > len(data):
+            raise PackageError("Fat Mach-O slice 范围无效")
+        image = data[offset:offset + size]
+        if image[:4] not in thin:
+            raise PackageError("Fat Mach-O 包含非 64 位 slice")
+        _validate_macho_load_commands(image, thin[image[:4]])
+        if struct.unpack_from(thin[image[:4]] + "i", image, 4)[0] != cpu_type:
+            raise PackageError("Fat Mach-O 架构表与 slice CPU 类型不匹配")
+        slices.append((cpu_type, image))
+    return slices
+
+
+def _validate_macho_load_commands(data: bytes, endian: str) -> None:
+    if len(data) < 32:
+        raise PackageError("Mach-O 64 位头部被截断")
+    ncmds, sizeofcmds = struct.unpack_from(endian + "II", data, 16)
+    command_end = 32 + sizeofcmds
+    if command_end > len(data):
+        raise PackageError("Mach-O load commands 越过 slice 边界")
+    cursor = 32
+    for _ in range(ncmds):
+        if cursor + 8 > command_end:
+            raise PackageError("Mach-O load command header 被截断")
+        command, command_size = struct.unpack_from(endian + "II", data, cursor)
+        if command_size < 8 or cursor + command_size > command_end:
+            raise PackageError("Mach-O load command 大小越界")
+        if (command & 0x7FFFFFFF) == 0x1D and command_size >= 16:
+            signature_size = struct.unpack_from(endian + "I", data, cursor + 12)[0]
+            if signature_size:
+                raise PackageError("iOS IPA Mach-O 含有 embedded code signature")
+        cursor += command_size
+    if cursor != command_end:
+        raise PackageError("Mach-O load command 区域长度不匹配")
+
+
+def _macho_architectures(data: bytes) -> set[int]:
+    return {cpu_type for cpu_type, _ in _macho_slices(data)}
 
 
 def _check_macho(data: bytes, architecture: str) -> None:
     expected = CPU_TYPES[architecture]
     if expected not in _macho_architectures(data):
         raise PackageError(f"应用主程序不包含要求的 {architecture} Mach-O 架构")
+
+
+def _check_ios_macho(data: bytes) -> None:
+    arm_slices = [image for cpu_type, image in _macho_slices(data) if cpu_type == CPU_TYPES["arm64"]]
+    if not arm_slices:
+        raise PackageError("iOS Mach-O 不包含 arm64 架构")
+    for image in arm_slices:
+        magic = image[:4]
+        endian = "<" if magic in {b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe"} else ">"
+        ncmds, sizeofcmds = struct.unpack_from(endian + "II", image, 16)
+        command_end = 32 + sizeofcmds
+        cursor = 32
+        platform = None
+        for _ in range(ncmds):
+            command, command_size = struct.unpack_from(endian + "II", image, cursor)
+            base_command = command & 0x7FFFFFFF
+            if base_command == 0x32 and command_size >= 24:  # LC_BUILD_VERSION
+                platform = struct.unpack_from(endian + "I", image, cursor + 8)[0]
+            elif base_command == 0x25 and command_size >= 16:  # LC_VERSION_MIN_IPHONEOS
+                platform = 2
+            cursor += command_size
+        if cursor != command_end or platform != 2:
+            raise PackageError("IPA arm64 Mach-O 必须是实体 iOS 构建，不接受 simulator 或未标注 platform")
 
 
 def validate_ios_ipa(path: Path, version: str, version_code: int) -> None:
@@ -88,7 +156,17 @@ def validate_ios_ipa(path: Path, version: str, version_code: int) -> None:
             info_name = app_prefix + "Info.plist"
             executable = _parse_info(archive.read(info_name), version, version_code)
             binary = archive.read(app_prefix + executable)
-            _check_macho(binary, "arm64")
+            _check_ios_macho(binary)
+            for name in app_files:
+                if name.endswith("/") or name in {info_name, app_prefix + executable}:
+                    continue
+                contents = archive.read(name)
+                if contents[:4] in {
+                    b"\xcf\xfa\xed\xfe", b"\xfe\xed\xfa\xcf",
+                    b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca",
+                    b"\xca\xfe\xba\xbf", b"\xbf\xba\xfe\xca",
+                }:
+                    _check_ios_macho(contents)
     except (OSError, zipfile.BadZipFile, KeyError, RuntimeError) as error:
         if isinstance(error, PackageError):
             raise

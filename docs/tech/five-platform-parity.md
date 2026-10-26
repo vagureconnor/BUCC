@@ -45,7 +45,7 @@
 | 平台 | 代码证据与已知平台差异 | 本次运行证据 |
 | --- | --- | --- |
 | iOS | Compose 共享界面通过 iOS 实际实现接入系统能力。日历导入由原生 EventKit bridge 提供。新作业检查通过 `BGAppRefreshTask`，任务最早时间设为当前时间后 1 小时；实际执行时间由 iOS 决定，不能承诺每小时触发。提醒处理器由 Compose 作业 ViewModel 安装，系统调度和通知权限仍可能使提醒延迟或不显示。 | 仅检查源码、`Info.plist` 和现有测试文件；本次未在设备运行或触发 BGTask。 |
-| Android | Compose 共用业务界面，系统提醒由 Android 实现。作业提醒轮询间隔为 0，`installHomeworkBackgroundTaskHandler` 是空实现；当前 ViewModel 创建后 5 秒进行一次初始检查，随后结束监控循环，没有 Android 前台恢复回调重新检查作业。新作业通知还受 Android 通知权限控制。课程/每日待办 AlarmManager 提醒另受精确闹钟权限和系统调度限制。 | 本次没有 Android SDK，Android 编译和设备运行未执行；这不能作为运行通过。 |
+| Android | Compose 共用业务界面，系统提醒由 Android 实现。作业提醒轮询间隔为 0，`installHomeworkBackgroundTaskHandler` 是空实现；ViewModel 现在提供 `onAppForegrounded()`，由应用前台恢复时检查新作业，通知仍受 Android 通知权限控制。没有 Android 后台作业轮询保证。课程/每日待办 AlarmManager 提醒另受精确闹钟权限和系统调度限制。 | 本次没有 Android SDK，Android 编译和设备运行未执行；这不能作为运行通过。 |
 | HarmonyOS | Compose 业务界面通过 `HarmonyHost` 接入 ArkTS Host。作业轮询间隔为 0；EntryAbility 在应用回到前台且控制器就绪后调用 `refreshHomeworkOnForeground`，没有后台轮询保证。新作业通知通过系统通知服务请求，权限/系统策略可能拒绝；异常在通知调用处被吞掉。日历导入当前声明不可用。 | 仅检查 Kotlin/ArkTS 源码；本次未运行设备、通知权限或前台恢复流程。 |
 | macOS | JVM 桌面端共享页面；通知轮询间隔为 30 分钟，仅在客户端进程和对应 ViewModel 存活时检查。通知依赖系统托盘可用；无托盘或 headless 环境会跳过通知。系统日历导入由 macOS 原生 bridge 提供。 | 仅检查源码；未启动 macOS GUI、托盘、日历权限或原生 bridge。 |
 | Windows | JVM 桌面端共享页面；作业轮询间隔为 30 分钟，仅在客户端进程和对应 ViewModel 存活时检查。系统通知仍受 Windows 通知设置影响；离开应用后没有作业后台轮询。日历导入不可用。 | 仅检查源码；未启动 Windows GUI 或验证通知设置/运行时桥接。 |
@@ -57,8 +57,8 @@
 - macOS/Windows：`HomeworkReminderPlatform.jvm.kt` 对两种桌面系统返回 30 分钟间隔；仅应用进程存活时循环检查。重启前新增作业不会在客户端关闭期间被轮询发现。
 - iOS：使用系统 `BGAppRefreshTask`；最早开始时间是 1 小时后，不等于一小时周期。iOS 可延迟或不安排后台刷新；处理器不在内存中时也无法完成应用层刷新。
 - HarmonyOS：仅在 `EntryAbility` 前台回调中执行检查；没有后台周期调度保证，通知权限或系统策略可阻止展示。
-- Android：代码将作业轮询间隔设为 0，Android 背景任务处理器为空。当前只有 ViewModel 初始化时延迟 5 秒的一次检查；应用恢复前台并不会由作业提醒代码重新检查。手动进入作业页的加载和通知监控不是同一条调用路径。
-- 因此，“发现新作业时通知”不能作为五端持续或及时提醒的承诺。尤其 Android 当前源码没有前台恢复刷新入口；这是需交由实现负责人评估的缺口，本清单不新增调度架构或修改业务代码。
+- Android：代码将作业轮询间隔设为 0，Android 背景任务处理器为空；应用前台恢复时由 `onAppForegrounded()` 执行一次检查，但应用后台期间没有检查保证。新作业通知仍受系统通知权限影响。
+- 因此，“发现新作业时通知”不能作为五端持续或及时提醒的承诺；Android 的前台恢复检查不提供后台轮询。
 
 ### 日历、扫码与财务二维码
 

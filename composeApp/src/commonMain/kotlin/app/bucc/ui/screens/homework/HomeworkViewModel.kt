@@ -32,6 +32,7 @@ class HomeworkViewModel(private val repository: HomeworkRepository) : ViewModel(
   private var detailJob: Job? = null
   private var loginJob: Job? = null
   private var reminderJob: Job? = null
+  private var foregroundCheckJob: Job? = null
   private var loaded = false
   private var sessionAvailable = true
   private val _detail = MutableStateFlow(HomeworkDetailState())
@@ -94,6 +95,20 @@ class HomeworkViewModel(private val repository: HomeworkRepository) : ViewModel(
       _detail.value = _detail.value.copy(isLoading = false)
       // Separate-platform login does not use the expired campus SSO session.
     }
+  }
+
+  fun onAppForegrounded() {
+    if (!sessionAvailable || foregroundCheckJob?.isActive == true) return
+    foregroundCheckJob =
+        viewModelScope.launch {
+          try {
+            val items = reminderMonitor.check()
+            if (NotificationPreferenceStore().read(repository.account).newHomework)
+                notifyNewHomework(items)
+          } catch (e: CancellationException) {
+            throw e
+          } catch (_: Exception) {}
+        }
   }
 
   fun hasLoaded() = loaded
@@ -198,6 +213,7 @@ class HomeworkViewModel(private val repository: HomeworkRepository) : ViewModel(
     detailJob?.cancel()
     loginJob?.cancel()
     reminderJob?.cancel()
+    foregroundCheckJob?.cancel()
     repository.close()
   }
 

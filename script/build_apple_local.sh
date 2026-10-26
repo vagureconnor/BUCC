@@ -41,22 +41,13 @@ if [[ "$platform" == ios ]]; then
     -derivedDataPath "$repo_root/build/ios-local-derived" \
     CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=
   python3 script/package_unsigned_ipa.py "$archive/Products/Applications/BUCC.app" "$artifact"
-  python3 - "$artifact" "$version" "$version_code" <<'PY'
-import plistlib,subprocess,sys,zipfile
+  python3 - "$repo_root/.github/scripts" "$artifact" "$version" "$version_code" <<'PY'
+import sys
 from pathlib import Path
-ipa=Path(sys.argv[1]); expected_version,expected_code=sys.argv[2:]
-with zipfile.ZipFile(ipa) as archive:
- apps=[n for n in archive.namelist() if n.startswith('Payload/') and n.endswith('.app/Info.plist')]
- if len(apps)!=1: raise SystemExit('IPA must contain exactly one device app')
- root=Path(archive.extract(apps[0],ipa.parent/'.ipa-verify')).parent
- info=plistlib.loads((root/'Info.plist').read_bytes())
- if info.get('CFBundleShortVersionString')!=expected_version or str(info.get('CFBundleVersion'))!=expected_code: raise SystemExit('IPA version metadata mismatch')
- if (root/'_CodeSignature').exists() or (root/'embedded.mobileprovision').exists(): raise SystemExit('IPA contains signing material')
- exe=root/info['CFBundleExecutable']
- archs=subprocess.run(['lipo','-archs',str(exe)],capture_output=True,text=True,check=True).stdout.split()
- if 'arm64' not in archs: raise SystemExit('IPA app executable lacks arm64')
+sys.path.insert(0, sys.argv[1])
+from package_validation import validate_ios_ipa
+validate_ios_ipa(Path(sys.argv[2]), sys.argv[3], int(sys.argv[4]))
 PY
-  rm -rf "$output_dir/.ipa-verify"
   arch=arm64; signing=unsigned
 elif [[ "$platform" == macos-arm64 || "$platform" == macos-x86_64 ]]; then
   target_arch="${platform#macos-}"

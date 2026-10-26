@@ -71,6 +71,7 @@ fun SigninScreen(viewModel: SigninViewModel) {
                   clazz,
                   { viewModel.performSignin(clazz.courseId) },
                   uiState.signingInCourseId == clazz.courseId,
+                  uiState.signingInCourseId != null,
               )
             }
           }
@@ -82,7 +83,12 @@ fun SigninScreen(viewModel: SigninViewModel) {
 
 /** 单个签到课程卡片。 */
 @Composable
-fun SigninClassCard(clazz: SigninClassDto, onSigninClick: () -> Unit, isSigningIn: Boolean) {
+fun SigninClassCard(
+    clazz: SigninClassDto,
+    onSigninClick: () -> Unit,
+    isSigningIn: Boolean,
+    isAnySigninInProgress: Boolean = isSigningIn,
+) {
   val isSigned = clazz.signStatus == 1
   Card(
       modifier = Modifier.fillMaxWidth(),
@@ -129,7 +135,7 @@ fun SigninClassCard(clazz: SigninClassDto, onSigninClick: () -> Unit, isSigningI
               MaterialTheme.colorScheme.primary,
           )
       else
-          Button(onClick = onSigninClick, enabled = !isSigningIn) {
+          Button(onClick = onSigninClick, enabled = !isAnySigninInProgress) {
             if (isSigningIn)
                 CircularProgressIndicator(
                     modifier = Modifier.size(16.dp),

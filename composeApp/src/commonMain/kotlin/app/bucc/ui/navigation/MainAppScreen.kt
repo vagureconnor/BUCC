@@ -997,6 +997,7 @@ fun MainAppScreen(
                       },
                   signingTodoId =
                       signinUiState.signingInCourseId?.let { courseId -> "signin:$courseId" },
+                  isSigninInProgress = signinUiState.signingInCourseId != null,
                   scoreUpdateNotice = gradeScoreWatchUiState.notice,
                   onRetrySchedule = { scheduleViewModel.loadUpcomingSchedule(forceRefresh = true) },
                   onRefresh = { refreshHomeData() },
@@ -1188,6 +1189,7 @@ fun MainAppScreen(
                     signinCourse = selectedSigninCourse,
                     isLoadingSigninClasses = signinUiState.isLoading,
                     isSigningIn = signinUiState.signingInCourseId == selectedSigninCourse?.courseId,
+                    isAnySigninInProgress = signinUiState.signingInCourseId != null,
                     signinResult = signinUiState.signinResult,
                     signinError = signinUiState.error,
                     onRetrySignin = { signinViewModel.ensureTodayLoaded(forceRefresh = true) },
@@ -1343,6 +1345,7 @@ fun MainAppScreen(
                   signingTodoId = signinUiState.signingInCourseId?.let { "signin:$it" },
                   onTodoClick = { handleHomeTodoClick(it) },
                   onSigninTodoClick = { signinViewModel.performSignin(it) },
+                  isSigninInProgress = signinUiState.signingInCourseId != null,
               )
           AppScreen.PAPER_PLANE -> PaperPlaneScreen(planeApi)
           AppScreen.CAMPUS_FINANCE ->

@@ -17,6 +17,7 @@ fun CourseDetailScreen(
     signinCourse: SigninClassDto? = null,
     isLoadingSigninClasses: Boolean = false,
     isSigningIn: Boolean = false,
+    isAnySigninInProgress: Boolean = isSigningIn,
     signinResult: String? = null,
     signinError: String? = null,
     onSigninClick: () -> Unit = {},
@@ -84,7 +85,7 @@ fun CourseDetailScreen(
             else ->
                 Button(
                     onClick = onSigninClick,
-                    enabled = !isSigningIn,
+                    enabled = !isAnySigninInProgress,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                   if (isSigningIn) {

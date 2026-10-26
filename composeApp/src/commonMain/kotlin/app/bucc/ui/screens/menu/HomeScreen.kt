@@ -90,6 +90,7 @@ internal fun HomeScreen(
     onCourseClick: (CourseClass) -> Unit,
     modifier: Modifier = Modifier,
     onCourseOccurrenceClick: ((UpcomingClass) -> Unit)? = null,
+    isSigninInProgress: Boolean = false,
 ) {
   val pullRefreshState = rememberPullRefreshState(refreshing = isRefreshing, onRefresh = onRefresh)
   var editingOrder by remember { mutableStateOf(false) }
@@ -128,6 +129,7 @@ internal fun HomeScreen(
             signingTodoId,
             onSigninTodoClick,
             { onCourseOccurrenceClick?.invoke(occurrence) ?: onCourseClick(occurrence.course) },
+            isSigninInProgress,
         )
       }
     }
@@ -147,7 +149,13 @@ internal fun HomeScreen(
           else HomeEmptyCard("当前没有待办", "新的课程与任务会显示在这里")
         }
     items(visibleTodos, key = { "todo:${it.id}" }) { item ->
-      HomeTodoCard(item, signingTodoId == item.id, { onTodoClick(item) }, onSigninTodoClick)
+      HomeTodoCard(
+          item,
+          signingTodoId == item.id,
+          { onTodoClick(item) },
+          onSigninTodoClick,
+          isSigninInProgress = isSigninInProgress,
+      )
     }
   }
   BoxWithConstraints(modifier = modifier.fillMaxSize().pullRefresh(pullRefreshState)) {
@@ -233,6 +241,7 @@ internal fun HomeScreen(
                   {
                     onCourseOccurrenceClick?.invoke(occurrence) ?: onCourseClick(occurrence.course)
                   },
+                  isSigninInProgress,
               )
             }
         item { TodayCourseProgress(progress, now, isLoading, error, scheduleHasLoaded) }
@@ -266,6 +275,7 @@ internal fun HomeScreen(
                     { onTodoClick(todo) },
                     onSigninTodoClick,
                     modifier = Modifier.height(168.dp),
+                    isSigninInProgress = isSigninInProgress,
                 )
               }
             }
@@ -440,6 +450,7 @@ internal fun HomeTodoListScreen(
     onTodoClick: (HomeTodoItem) -> Unit,
     onSigninTodoClick: (String) -> Unit,
     modifier: Modifier = Modifier,
+    isSigninInProgress: Boolean = false,
 ) {
   LazyColumn(
       modifier.fillMaxSize(),
@@ -450,7 +461,13 @@ internal fun HomeTodoListScreen(
     if (isLoading && items.isEmpty()) item { HomeLoadingCard("正在同步待办", "各来源的结果会陆续显示") }
     if (!isLoading && items.isEmpty()) item { HomeEmptyCard("当前没有待办", "新的课程与任务会显示在这里") }
     items(items.sortedWith(homeTodoComparator), key = { "todo:${it.id}" }) { item ->
-      HomeTodoCard(item, signingTodoId == item.id, { onTodoClick(item) }, onSigninTodoClick)
+      HomeTodoCard(
+          item,
+          signingTodoId == item.id,
+          { onTodoClick(item) },
+          onSigninTodoClick,
+          isSigninInProgress = isSigninInProgress,
+      )
     }
   }
 }
@@ -509,6 +526,7 @@ private fun UpcomingClassCard(
     signingTodoId: String?,
     onSigninClick: (String) -> Unit,
     onClick: () -> Unit,
+    isSigninInProgress: Boolean,
 ) {
   val ongoing = occurrence.isInProgress(now)
   Card(
@@ -567,7 +585,7 @@ private fun UpcomingClassCard(
       if (signinClass != null) {
         Button(
             onClick = { onSigninClick(signinClass.courseId) },
-            enabled = signingTodoId != "signin:${signinClass.courseId}",
+            enabled = !isSigninInProgress,
             modifier = Modifier.testTag("home-course-signin-${signinClass.courseId}"),
         ) {
           if (signingTodoId == "signin:${signinClass.courseId}") {
@@ -592,6 +610,7 @@ internal fun HomeTodoCard(
     onClick: () -> Unit,
     onSigninClick: (String) -> Unit,
     modifier: Modifier = Modifier,
+    isSigninInProgress: Boolean = isSigning,
 ) {
   val isSigninItem = item.action is HomeTodoAction.SigninCourse
   Card(
@@ -667,7 +686,7 @@ internal fun HomeTodoCard(
       if (item.action is HomeTodoAction.SigninCourse) {
         Button(
             onClick = { onSigninClick(item.action.courseId) },
-            enabled = !isSigning,
+            enabled = !isSigninInProgress,
         ) {
           if (isSigning) {
             CircularProgressIndicator(

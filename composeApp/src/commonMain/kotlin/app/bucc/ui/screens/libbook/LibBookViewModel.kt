@@ -46,6 +46,7 @@ data class LibBookUiState(
     val seatsError: String? = null,
     val bookingsError: String? = null,
     val actionMessage: String? = null,
+    val reservationSucceeded: Boolean = false,
     val cancelingBookingId: String? = null,
 )
 
@@ -254,7 +255,7 @@ class LibBookViewModel(
     val slot = current.selectedSlot ?: return setActionMessage("请先选择预约时段")
     val day = current.selectedDay.ifBlank { currentDateProvider() }
     val session = sessionVersion
-    _uiState.value = current.copy(isSubmitting = true, actionMessage = null)
+    _uiState.value = current.copy(isSubmitting = true, actionMessage = null, reservationSucceeded = false)
     viewModelScope.launch {
       val fresh = libBookApi.getSeatSnapshot(areaId, day, slot.start, slot.end)
       if (session != sessionVersion) return@launch
@@ -289,11 +290,14 @@ class LibBookViewModel(
             _uiState.value =
                 _uiState.value.copy(
                     isSubmitting = false,
-                    selectedSeatId = null,
+                    selectedSeatId = if (it.success) null else _uiState.value.selectedSeatId,
                     actionMessage = it.message,
+                    reservationSucceeded = it.success,
                 )
-            loadSeats(areaId, day, slot)
-            loadBookings()
+            if (it.success) {
+              loadSeats(areaId, day, slot)
+              loadBookings()
+            }
           }
           .onFailure {
             if (session != sessionVersion) return@onFailure
@@ -335,16 +339,18 @@ class LibBookViewModel(
     if (current.cancelingBookingId != null) return
     val booking = current.bookings.bookings.firstOrNull { it.id == bookingId }
     val blockedMessage =
-        booking?.cancelBlockedMessage() ?: if (bookingId.isBlank()) "预约记录不存在或已失效，请刷新后重试" else null
+        if (booking == null) "预约记录不存在或已失效，请刷新后重试" else booking.cancelBlockedMessage()
     if (blockedMessage != null) {
       setActionMessage(blockedMessage)
       return
     }
+    val session = sessionVersion
     _uiState.value = current.copy(cancelingBookingId = bookingId, actionMessage = null)
     viewModelScope.launch {
       libBookApi
           .cancelBooking(bookingId)
           .onSuccess { response ->
+            if (session != sessionVersion) return@onSuccess
             _uiState.value =
                 _uiState.value.copy(
                     cancelingBookingId = null,
@@ -354,6 +360,7 @@ class LibBookViewModel(
                 loadBookings(_uiState.value.bookings.page, _uiState.value.bookings.limit)
           }
           .onFailure {
+            if (session != sessionVersion) return@onFailure
             _uiState.value =
                 _uiState.value.copy(
                     cancelingBookingId = null,
@@ -384,7 +391,7 @@ class LibBookViewModel(
   }
 
   fun clearActionMessage() {
-    _uiState.value = _uiState.value.copy(actionMessage = null)
+    _uiState.value = _uiState.value.copy(actionMessage = null, reservationSucceeded = false)
   }
 
   private fun loadAreas(libraryId: String, storeyId: String?, day: String) {

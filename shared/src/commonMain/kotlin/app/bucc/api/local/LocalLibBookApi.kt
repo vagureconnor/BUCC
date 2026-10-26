@@ -145,7 +145,7 @@ internal class LocalLibBookApiBackend : LibBookApiBackend {
         }
         val response = client.reserve(request.copy(seatId = seatId))
         val message =
-            response.string("message").ifBlank { response.string("msg").ifBlank { "预约成功" } }
+            response.string("message").ifBlank { response.string("msg").ifBlank { if (response.isBusinessSuccess()) "预约成功" else "预约结果无效，请刷新预约记录确认" } }
         LibBookReserveResponse(
             success = response.isBusinessSuccess(),
             message = message,
@@ -184,7 +184,7 @@ internal class LocalLibBookApiBackend : LibBookApiBackend {
         }
         val response = client.cancelBooking(bookingId)
         val message =
-            response.string("message").ifBlank { response.string("msg").ifBlank { "取消成功" } }
+            response.string("message").ifBlank { response.string("msg").ifBlank { if (response.isBusinessSuccess()) "取消成功" else "取消结果无效，请刷新预约记录确认" } }
         if (!response.isBusinessSuccess()) {
           val errorCode = response.messageToLibBookErrorCode()
           throw LocalLibBookApiException(message, errorCode, errorCode.toLibBookHttpStatus())
@@ -695,14 +695,18 @@ private fun mapBooking(element: JsonElement): LibBookBookingDto {
       endTime = raw.string("endTime").ifBlank { raw.string("end_time") },
       status = raw.string("status"),
       statusName = raw.string("status_name"),
+      cancellationAllowed = raw.int("oksign") == 1,
   )
 }
 
 private fun JsonObject.isBusinessSuccess(): Boolean {
   val code = this["code"]?.jsonPrimitive?.intOrNull
-  if (code != null && code !in setOf(0, 1)) return false
+  if (code !in setOf(0, 1)) return false
   val message = string("message").ifBlank { string("msg") }
-  return !message.contains("失败") &&
+  if (code == 1 && message !in setOf("操作成功", "预约成功", "取消成功")) return false
+  return !message.contains("未成功") &&
+      !message.contains("不成功") &&
+      !message.contains("失败") &&
       !message.contains("不可") &&
       !message.contains("已被") &&
       !message.contains("不能取消") &&

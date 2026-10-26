@@ -145,9 +145,10 @@ fun LibBookReserveScreen(viewModel: LibBookViewModel, onSubmitSuccess: () -> Uni
   }
   LaunchedEffect(uiState.actionMessage) {
     uiState.actionMessage?.let { message ->
+      val succeeded = uiState.reservationSucceeded
       snackbarHostState.showSnackbar(message)
       viewModel.clearActionMessage()
-      if (message.contains("成功")) onSubmitSuccess()
+      if (succeeded) onSubmitSuccess()
     }
   }
 

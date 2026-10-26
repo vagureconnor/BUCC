@@ -72,6 +72,22 @@ class LibBookViewModelTest {
   }
 
   @Test
+  fun `negative success message cannot navigate or refresh as a reservation success`() = runTest {
+    setMainDispatcher(testScheduler)
+    val api = FakeLibBookApi(reservation = LibBookReserveResponse(false, "预约未成功"))
+    val viewModel = LibBookViewModel(api, currentDateProvider = { "2026-05-08" })
+    viewModel.ensureInitialLoaded()
+    advanceUntilIdle()
+    viewModel.selectSeat("101")
+    viewModel.submitReservation()
+    advanceUntilIdle()
+    assertEquals(false, viewModel.uiState.value.reservationSucceeded)
+    assertEquals("101", viewModel.uiState.value.selectedSeatId)
+    assertEquals(0, api.bookingsCalls)
+    assertEquals("预约未成功", viewModel.uiState.value.actionMessage)
+  }
+
+  @Test
   fun `cancel booking refreshes bookings`() = runTest {
     setMainDispatcher(testScheduler)
     val api = FakeLibBookApi()
@@ -120,8 +136,9 @@ class LibBookViewModelTest {
 }
 
 private class FakeLibBookApi(
+    private val reservation: LibBookReserveResponse = LibBookReserveResponse(true, "预约成功"),
     private val bookings: List<LibBookBookingDto> =
-        listOf(LibBookBookingDto(id = "b1", nameMerge = "一层 / 101", statusName = "已预约"))
+        listOf(LibBookBookingDto(id = "b1", nameMerge = "一层 / 101", status = "2", statusName = "已预约", cancellationAllowed = true))
 ) : LibBookApi() {
   var librariesCalls = 0
   var areasCalls = 0
@@ -201,7 +218,7 @@ private class FakeLibBookApi(
 
   override suspend fun reserve(request: LibBookReserveRequest): Result<LibBookReserveResponse> {
     reserveCalls++
-    return Result.success(LibBookReserveResponse(true, "预约成功"))
+    return Result.success(reservation)
   }
 
   override suspend fun getBookings(page: Int, limit: Int): Result<LibBookBookingsResponse> {

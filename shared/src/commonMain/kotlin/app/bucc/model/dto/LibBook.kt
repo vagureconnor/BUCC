@@ -106,6 +106,7 @@ data class LibBookBookingDto(
     val endTime: String = "",
     val status: String = "",
     val statusName: String = "",
+    val cancellationAllowed: Boolean = false,
 )
 
 fun LibBookBookingDto.canCancelBooking(): Boolean = cancelBlockedMessage() == null
@@ -118,10 +119,13 @@ fun LibBookBookingDto.cancelBlockedMessage(): String? {
   if (nonCancelableLibBookBookingStatusKeywords.any { statusName.contains(it) }) {
     return "该预约已结束或已取消，无需取消"
   }
+  if (status.trim() !in setOf("2", "9") || !cancellationAllowed) {
+    return "当前预约状态不允许取消，请刷新或前往图书馆官方页面确认"
+  }
   return null
 }
 
-private val nonCancelableLibBookBookingStatusCodes = setOf("6", "8")
+private val nonCancelableLibBookBookingStatusCodes = setOf("4", "6", "8")
 
 private val nonCancelableLibBookBookingStatusKeywords = listOf("取消", "结束", "已完成", "过期", "失效")
 

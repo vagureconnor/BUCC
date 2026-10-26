@@ -18,7 +18,10 @@ fun CourseDetailScreen(
     isLoadingSigninClasses: Boolean = false,
     isSigningIn: Boolean = false,
     signinResult: String? = null,
+    signinError: String? = null,
     onSigninClick: () -> Unit = {},
+    onRetrySignin: () -> Unit = {},
+    onOpenSigninList: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
   LazyColumn(
@@ -62,11 +65,20 @@ fun CourseDetailScreen(
                   Spacer(Modifier.width(8.dp))
                   Text("正在加载今日可签到课程…")
                 }
-            signinCourse == null ->
+            signinError != null -> {
+              Text(signinError, color = MaterialTheme.colorScheme.error)
+              Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onRetrySignin) { Text("重试") }
+                OutlinedButton(onClick = onOpenSigninList) { Text("查看今日课堂") }
+              }
+            }
+            signinCourse == null -> {
                 Text(
                     "今日没有找到与这门课匹配的可签到班次。",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                OutlinedButton(onClick = onOpenSigninList) { Text("查看今日课堂") }
+            }
             signinCourse.signStatus == 1 ->
                 Text("本课程已签到。", color = MaterialTheme.colorScheme.primary)
             else ->

@@ -50,8 +50,14 @@ fun SigninScreen(viewModel: SigninViewModel) {
         uiState.isLoading ->
             Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
         uiState.error != null ->
-            Box(Modifier.fillMaxSize(), Alignment.Center) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
               Text(text = uiState.error!!, color = MaterialTheme.colorScheme.error)
+              Spacer(Modifier.height(12.dp))
+              Button(onClick = { viewModel.loadTodayClasses() }) { Text("重试") }
             }
         uiState.classes.isEmpty() ->
             Box(Modifier.fillMaxSize(), Alignment.Center) { Text("今日无课程安排") }

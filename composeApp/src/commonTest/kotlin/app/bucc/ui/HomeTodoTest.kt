@@ -417,6 +417,55 @@ class HomeTodoTest {
   }
 
   @Test
+  fun `signin matching normalizes clock seconds and date time values`() {
+    val course =
+        app.bucc.model.dto.CourseClass(
+            courseCode = "phys-101",
+            courseName = " 大学物理 ",
+            courseSerialNo = null,
+            credit = null,
+            beginTime = "12:08:00",
+            endTime = "13:00",
+            beginSection = null,
+            endSection = null,
+            placeName = null,
+            weeksAndTeachers = null,
+            teachingTarget = null,
+            color = null,
+            dayOfWeek = 3,
+        )
+
+    val match = findSigninCourse(
+        course,
+        listOf(SigninClassDto("signin-1", "大学物理", "2026-04-22 12:08", "2026-04-22T13:00:00", 0)),
+    )
+
+    assertEquals("signin-1", match?.courseId)
+  }
+
+  @Test
+  fun `signin matching does not fall back to same course name`() {
+    val course =
+        app.bucc.model.dto.CourseClass(
+            courseCode = "phys-101",
+            courseName = "大学物理",
+            courseSerialNo = null,
+            credit = null,
+            beginTime = "12:08",
+            endTime = "13:00",
+            beginSection = null,
+            endSection = null,
+            placeName = null,
+            weeksAndTeachers = null,
+            teachingTarget = null,
+            color = null,
+            dayOfWeek = 3,
+        )
+
+    assertNull(findSigninCourse(course, listOf(SigninClassDto("other", "大学物理", "12:09", "13:00", 0))))
+  }
+
+  @Test
   fun `ordinary homework remains in todo list`() {
     val ordinaryHomework =
         HomeworkItem(

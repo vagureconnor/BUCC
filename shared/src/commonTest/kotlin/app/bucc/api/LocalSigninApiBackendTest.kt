@@ -135,6 +135,112 @@ class LocalSigninApiBackendTest {
   }
 
   @Test
+  fun `signin api reports upstream application errors instead of an empty success`() = runTest {
+    val loginName = "Rjc1QkJDMUMxNzVENkY0NkZCNzFDMEM5RjYwNzg4RDg="
+    val engine = MockEngine { request ->
+      when {
+        request.url.port == 8346 ->
+            respond(
+                content = ByteReadChannel(""),
+                status = HttpStatusCode.Found,
+                headers = headersOf(HttpHeaders.Location, "https://iclass.buaa.edu.cn:8346/?loginName=$loginName"),
+            )
+        request.url.encodedPath == "/app/user/login.action" ->
+            respond(
+                content = ByteReadChannel("""{"STATUS":0,"result":{"id":"user-1","sessionId":"session-1"}}"""),
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+            )
+        request.url.encodedPath == "/app/course/get_stu_course_sched.action" ->
+            respond(
+                content = ByteReadChannel("""{"STATUS":403,"ERRMSG":"课程查询失败"}"""),
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+            )
+        else -> error("Unexpected url: ${request.url}")
+      }
+    }
+    useMockUpstream(engine)
+
+    val result = SigninApi().getTodayClasses()
+
+    assertTrue(result.isFailure)
+    assertEquals("课程查询失败", result.exceptionOrNull()?.message)
+  }
+
+  @Test
+  fun `signin api reports non-200 response as failure`() = runTest {
+    val loginName = "Rjc1QkJDMUMxNzVENkY0NkZCNzFDMEM5RjYwNzg4RDg="
+    val engine = MockEngine { request ->
+      when {
+        request.url.port == 8346 ->
+            respond(
+                content = ByteReadChannel(""),
+                status = HttpStatusCode.Found,
+                headers = headersOf(HttpHeaders.Location, "https://iclass.buaa.edu.cn:8346/?loginName=$loginName"),
+            )
+        request.url.encodedPath == "/app/user/login.action" ->
+            respond(
+                content = ByteReadChannel("""{"STATUS":0,"result":{"id":"user-1","sessionId":"session-1"}}"""),
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+            )
+        request.url.encodedPath == "/app/course/get_stu_course_sched.action" ->
+            respond(content = ByteReadChannel("unavailable"), status = HttpStatusCode.ServiceUnavailable)
+        else -> error("Unexpected url: ${request.url}")
+      }
+    }
+    useMockUpstream(engine)
+
+    assertTrue(SigninApi().getTodayClasses().isFailure)
+  }
+
+  @Test
+  fun `signin api refreshes an explicitly expired session only once`() = runTest {
+    val loginName = "Rjc1QkJDMUMxNzVENkY0NkZCNzFDMEM5RjYwNzg4RDg="
+    var loginRequests = 0
+    var classRequests = 0
+    val engine = MockEngine { request ->
+      when {
+        request.url.port == 8346 ->
+            respond(
+                content = ByteReadChannel(""),
+                status = HttpStatusCode.Found,
+                headers = headersOf(HttpHeaders.Location, "https://iclass.buaa.edu.cn:8346/?loginName=$loginName"),
+            )
+        request.url.encodedPath == "/app/user/login.action" -> {
+          loginRequests++
+          respond(
+              content = ByteReadChannel("""{"STATUS":0,"result":{"id":"user-1","sessionId":"session-$loginRequests"}}"""),
+              status = HttpStatusCode.OK,
+              headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+          )
+        }
+        request.url.encodedPath == "/app/course/get_stu_course_sched.action" -> {
+          classRequests++
+          respond(
+              content =
+                  ByteReadChannel(
+                      if (classRequests == 1) """{"STATUS":403,"ERRMSG":"登录失效"}"""
+                      else """{"STATUS":0,"result":[]}"""
+                  ),
+              status = HttpStatusCode.OK,
+              headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+          )
+        }
+        else -> error("Unexpected url: ${request.url}")
+      }
+    }
+    useMockUpstream(engine)
+
+    val result = SigninApi().getTodayClasses()
+
+    assertTrue(result.isSuccess, result.exceptionOrNull()?.message.orEmpty())
+    assertEquals(2, loginRequests)
+    assertEquals(2, classRequests)
+  }
+
+  @Test
   fun `signin api follows iclass my center redirect chain before app login`() = runTest {
     val expectedDate = currentSigninDate()
     val loginName = "Rjc1QkJDMUMxNzVENkY0NkZCNzFDMEM5RjYwNzg4RDg="
@@ -666,7 +772,7 @@ class LocalSigninApiBackendTest {
   }
 
   private fun currentSigninDate(): String {
-    val date = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+    val date = Clock.System.now().toLocalDateTime(TimeZone.of("Asia/Shanghai")).date
     return buildString {
       append(date.year)
       append(date.month.ordinal.plus(1).toString().padStart(2, '0'))

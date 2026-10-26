@@ -39,13 +39,17 @@ class SigninViewModel(
 
   /** 拉取今日所有可签到的课堂。 */
   fun loadTodayClasses() {
-    loadedOnce = true
+    if (_uiState.value.isLoading) return
+    _uiState.value = _uiState.value.copy(isLoading = true, error = null)
     viewModelScope.launch {
-      _uiState.value = _uiState.value.copy(isLoading = true, error = null)
       signinApi
           .getTodayClasses()
-          .onSuccess { _uiState.value = _uiState.value.copy(isLoading = false, classes = it.data) }
+          .onSuccess {
+            loadedOnce = true
+            _uiState.value = _uiState.value.copy(isLoading = false, classes = it.data)
+          }
           .onFailure {
+            loadedOnce = false
             _uiState.value = _uiState.value.copy(isLoading = false, error = it.message ?: "加载课程失败")
           }
     }

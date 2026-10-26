@@ -31,13 +31,18 @@ APP_PROFILE = Path(
     "/Users/connor/Library/Application Support/BUCC/Signing/Harmony/BUCC-Harmony-Release.p7b"
 )
 DEFAULT_HAP_SIGN_TOOL = Path(
-    "/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/lib/hap-sign-tool.jar"
-)
+    os.environ.get(
+        "DEVECO_SDK_HOME", "/Applications/DevEco-Studio.app/Contents/sdk"
+    )
+) / "default/openharmony/toolchains/lib/hap-sign-tool.jar"
+EXPECTED_SIGNING_FINGERPRINT = "df21a3c09f7954579305f85c64f80cad86f79853ee3a887c1dec95d218df3a37"
+BUNDLE_CONFIG = Path(__file__).resolve().parents[1] / "harmonyApp/AppScope/app.json5"
 SIGN_ALIAS = "bucc_release"
 SIGN_ALGORITHM = "SHA384withECDSA"
 COMPATIBLE_VERSION = "20"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 SOURCE_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+SOURCE_TREE_RE = re.compile(r"^[0-9a-f]{40}$")
 VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 
 # HAP signing adds certificate/profile/signature records under META-INF. These
@@ -121,6 +126,9 @@ def validate_input(
     source_sha = metadata.get("source_sha")
     if source_sha != expected_source_sha:
         raise SigningError("input metadata source SHA does not match the expected source")
+    source_tree = metadata.get("source_tree")
+    if not isinstance(source_tree, str) or not SOURCE_TREE_RE.fullmatch(source_tree):
+        raise SigningError("input metadata source tree is invalid")
     if metadata.get("file") != resolved_hap.name:
         raise SigningError("input metadata filename does not match the HAP")
     version = metadata.get("version")
@@ -378,6 +386,80 @@ def certificate_fingerprint(certificate: Path) -> str:
     return match.group(1).replace(":", "").lower()
 
 
+def validate_release_certificate_fingerprint(certificate: Path) -> str:
+    fingerprint = certificate_fingerprint(certificate)
+    if fingerprint != EXPECTED_SIGNING_FINGERPRINT:
+        raise SigningError("verified HAP certificate does not match the approved release certificate")
+    return fingerprint
+
+
+def read_project_bundle_name(config_path: Path = BUNDLE_CONFIG) -> str:
+    try:
+        contents = config_path.read_text(encoding="utf-8")
+    except OSError:
+        raise SigningError("Harmony application configuration is missing") from None
+    names = re.findall(r'"bundleName"\s*:\s*"([^"]+)"', contents)
+    if len(names) != 1:
+        raise SigningError("Harmony application configuration must declare one bundleName")
+    return names[0]
+
+
+def _profile_bundle_names(value: object) -> set[str]:
+    names: set[str] = set()
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key in {"bundle-name", "bundleName", "bundle_name"} and isinstance(item, str):
+                names.add(item)
+            names.update(_profile_bundle_names(item))
+    elif isinstance(value, list):
+        for item in value:
+            names.update(_profile_bundle_names(item))
+    return names
+
+
+def validate_verified_profile(profile: Path, expected_bundle_name: str) -> None:
+    openssl = shutil.which("openssl")
+    if not openssl or not profile.is_file():
+        raise SigningError("verified HAP profile could not be inspected")
+    with tempfile.TemporaryDirectory(prefix="bucc-harmony-profile-") as temporary:
+        content = Path(temporary) / "verified-profile.json"
+        verified = False
+        for encoding in ("DER", "PEM"):
+            try:
+                result = subprocess.run(
+                    [
+                        openssl,
+                        "cms",
+                        "-verify",
+                        "-binary",
+                        "-inform",
+                        encoding,
+                        "-in",
+                        str(profile),
+                        "-noverify",
+                        "-out",
+                        str(content),
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+            except OSError:
+                raise SigningError("OpenSSL could not inspect the verified HAP profile") from None
+            if result.returncode == 0 and content.is_file():
+                verified = True
+                break
+            content.unlink(missing_ok=True)
+        if not verified:
+            raise SigningError("officially verified HAP profile content is unreadable")
+        try:
+            profile_data = json.loads(content.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            raise SigningError("verified HAP profile is not valid JSON") from None
+    if _profile_bundle_names(profile_data) != {expected_bundle_name}:
+        raise SigningError("verified HAP profile bundle name does not match the current app configuration")
+
+
 def verify_signed_hap(java: str, hap_sign_tool: Path, signed_hap: Path, temp_dir: Path) -> tuple[Path, Path]:
     certificate = temp_dir / "verified-cert-chain.cer"
     profile = temp_dir / "verified-profile.p7b"
@@ -464,13 +546,16 @@ def sign(
             verify_signed_hap(java_command, hap_sign_tool, signed_temp, private_temp)
             verify_payload_unchanged(input_hap, signed_temp)
             verified_cert = private_temp / "verified-cert-chain.cer"
-            fingerprint = certificate_fingerprint(verified_cert)
+            verified_profile = private_temp / "verified-profile.p7b"
+            fingerprint = validate_release_certificate_fingerprint(verified_cert)
+            validate_verified_profile(verified_profile, read_project_bundle_name())
             signed_sha = hash_file(signed_temp)
             result = {
                 "platform": "harmony",
                 "version": metadata["version"],
                 "version_code": metadata.get("version_code"),
                 "source_sha": expected_source_sha,
+                "source_tree": metadata["source_tree"],
                 "arch": "arm64-v8a",
                 "input_file": input_hap.name,
                 "input_sha256": metadata["sha256"],

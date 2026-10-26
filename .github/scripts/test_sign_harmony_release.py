@@ -8,12 +8,14 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
 from script.sign_harmony_release import (
     APP_CERTIFICATE,
     APP_PROFILE,
     COMPATIBLE_VERSION,
     EXPECTED_KEYSTORE,
+    EXPECTED_SIGNING_FINGERPRINT,
     SIGN_ALIAS,
     SIGN_ALGORITHM,
     SIGNATURE_ENTRY_RE,
@@ -21,7 +23,10 @@ from script.sign_harmony_release import (
     build_sign_command,
     hash_file,
     payload_hashes,
+    read_project_bundle_name,
     run_interactive_signer,
+    validate_release_certificate_fingerprint,
+    validate_verified_profile,
     validate_input,
     verify_payload_unchanged,
 )
@@ -44,6 +49,7 @@ def write_metadata(path: Path, hap: Path, source_sha: str = SOURCE_SHA) -> None:
         "version": VERSION,
         "version_code": 201,
         "source_sha": source_sha,
+        "source_tree": "b" * 40,
         "file": hap.name,
         "sha256": hash_file(hap),
         "signing": "unsigned",
@@ -146,6 +152,52 @@ class SigningInputTests(unittest.TestCase):
         self.assertEqual(SIGN_ALGORITHM, command[command.index("-signAlg") + 1])
         self.assertEqual(COMPATIBLE_VERSION, command[command.index("-compatibleVersion") + 1])
         self.assertEqual("1", command[command.index("-pwdInputMode") + 1])
+
+    def test_requires_source_tree_metadata(self):
+        metadata = json.loads(self.metadata.read_text())
+        metadata.pop("source_tree")
+        self.metadata.write_text(json.dumps(metadata))
+        with self.assertRaisesRegex(SigningError, "source tree"):
+            self.validate()
+
+    def test_profile_bundle_name_matches_project_configuration(self):
+        self.assertEqual("com.bucc.client", read_project_bundle_name())
+        with patch_profile_content({"bundle-info": {"bundle-name": "com.bucc.client"}}) as profile:
+            validate_verified_profile(profile, "com.bucc.client")
+        with patch_profile_content({"bundle-info": {"bundle-name": "com.attacker.other"}}) as profile:
+            with self.assertRaisesRegex(SigningError, "bundle name"):
+                validate_verified_profile(profile, "com.bucc.client")
+        with patch_profile_content({"bundle-info": {"bundle-name": "other", "application-id": "com.bucc.client"}}) as profile:
+            with self.assertRaisesRegex(SigningError, "bundle name"):
+                validate_verified_profile(profile, "com.bucc.client")
+
+    def test_certificate_fingerprint_must_match_approved_release_identity(self):
+        self.assertEqual(len(EXPECTED_SIGNING_FINGERPRINT), 64)
+        with patch("script.sign_harmony_release.certificate_fingerprint", return_value=EXPECTED_SIGNING_FINGERPRINT):
+            self.assertEqual(EXPECTED_SIGNING_FINGERPRINT, validate_release_certificate_fingerprint(self.root / "cert.cer"))
+        with patch("script.sign_harmony_release.certificate_fingerprint", return_value="0" * 64):
+            with self.assertRaisesRegex(SigningError, "approved release certificate"):
+                validate_release_certificate_fingerprint(self.root / "wrong.cer")
+
+
+@contextlib.contextmanager
+def patch_profile_content(content):
+    from unittest.mock import patch
+
+    payload = json.dumps(content).encode()
+
+    def fake_openssl(argv, **kwargs):
+        output = Path(argv[argv.index("-out") + 1])
+        output.write_bytes(payload)
+        return type("Result", (), {"returncode": 0})()
+
+    with patch("script.sign_harmony_release.shutil.which", return_value="openssl"), patch(
+        "script.sign_harmony_release.subprocess.run", side_effect=fake_openssl
+    ):
+        with tempfile.TemporaryDirectory() as temporary:
+            profile = Path(temporary) / "verified-profile.p7b"
+            profile.write_bytes(b"signed profile fixture")
+            yield profile
 
 
 class InteractivePasswordTests(unittest.TestCase):

@@ -26,45 +26,68 @@ data class HomeworkLoginState(
     val error: String? = null,
 )
 
-class HomeworkViewModel(private val repository: HomeworkRepository) : ViewModel() {
+class HomeworkViewModel
+internal constructor(
+    private val repository: HomeworkRepository,
+    installBackgroundTaskHandler:
+        (HomeworkBackgroundTaskHandler) -> HomeworkBackgroundTaskRegistration,
+) : ViewModel() {
+  constructor(repository: HomeworkRepository) :
+      this(repository, ::installHomeworkBackgroundTaskHandler)
+
   val state = repository.state
   private val refreshJobs = mutableMapOf<HomeworkSource, Job>()
   private var detailJob: Job? = null
   private var loginJob: Job? = null
   private var reminderJob: Job? = null
   private var foregroundCheckJob: Job? = null
+  private var backgroundCheckJob: Job? = null
+  private var closed = false
   private var loaded = false
   private var sessionAvailable = true
+  private var sessionGeneration = 0L
   private val _detail = MutableStateFlow(HomeworkDetailState())
   val detail = _detail.asStateFlow()
   private val _login = MutableStateFlow(HomeworkLoginState())
   val login = _login.asStateFlow()
   private val reminderMonitor = HomeworkReminderMonitor(repository.account, repository)
+  private val backgroundTaskRegistration: HomeworkBackgroundTaskRegistration
 
   init {
-    installHomeworkBackgroundTaskHandler(
-        object : HomeworkBackgroundTaskHandler {
-          override fun refresh(completion: HomeworkBackgroundTaskCompletion) {
-            viewModelScope.launch {
-              try {
-                if (!sessionAvailable) {
+    backgroundTaskRegistration =
+        installBackgroundTaskHandler(
+            object : HomeworkBackgroundTaskHandler {
+              override fun refresh(completion: HomeworkBackgroundTaskCompletion) {
+                if (closed || !sessionAvailable) {
                   completion.finish("session_unavailable")
-                  return@launch
+                  return
                 }
-                val items = reminderMonitor.check()
-                if (NotificationPreferenceStore().read(repository.account).newHomework)
-                    notifyNewHomework(items)
-                completion.finish("success")
-              } catch (e: CancellationException) {
-                completion.finish("cancelled")
-                throw e
-              } catch (e: Exception) {
-                completion.finish("failed")
+                if (backgroundCheckJob?.isActive == true) {
+                  completion.finish("busy")
+                  return
+                }
+                val generation = sessionGeneration
+                backgroundCheckJob =
+                    viewModelScope.launch {
+                      try {
+                        val items = reminderMonitor.check()
+                        if (!isCurrentSession(generation)) {
+                          completion.finish("session_unavailable")
+                          return@launch
+                        }
+                        if (NotificationPreferenceStore().read(repository.account).newHomework)
+                            notifyNewHomework(items)
+                        completion.finish("success")
+                      } catch (e: CancellationException) {
+                        completion.finish("cancelled")
+                        throw e
+                      } catch (e: Exception) {
+                        completion.finish("failed")
+                      }
+                    }
               }
             }
-          }
-        }
-    )
+        )
     reminderJob =
         viewModelScope.launch {
           delay(5_000)
@@ -74,8 +97,12 @@ class HomeworkViewModel(private val repository: HomeworkRepository) : ViewModel(
                 delay(1_000)
                 continue
               }
+              val generation = sessionGeneration
               val items = reminderMonitor.check()
-              if (NotificationPreferenceStore().read(repository.account).newHomework)
+              if (
+                  isCurrentSession(generation) &&
+                      NotificationPreferenceStore().read(repository.account).newHomework
+              )
                   notifyNewHomework(items)
             } catch (e: CancellationException) {
               throw e
@@ -88,10 +115,17 @@ class HomeworkViewModel(private val repository: HomeworkRepository) : ViewModel(
   }
 
   fun setSessionAvailable(available: Boolean) {
+    if (closed) return
+    if (sessionAvailable == available) return
     sessionAvailable = available
+    sessionGeneration++
     if (!available) {
       cancelRefresh()
       detailJob?.cancel()
+      foregroundCheckJob?.cancel()
+      foregroundCheckJob = null
+      backgroundCheckJob?.cancel()
+      backgroundCheckJob = null
       _detail.value = _detail.value.copy(isLoading = false)
       // Separate-platform login does not use the expired campus SSO session.
     }
@@ -99,11 +133,15 @@ class HomeworkViewModel(private val repository: HomeworkRepository) : ViewModel(
 
   fun onAppForegrounded() {
     if (!sessionAvailable || foregroundCheckJob?.isActive == true) return
+    val generation = sessionGeneration
     foregroundCheckJob =
         viewModelScope.launch {
           try {
             val items = reminderMonitor.check()
-            if (NotificationPreferenceStore().read(repository.account).newHomework)
+            if (
+                isCurrentSession(generation) &&
+                    NotificationPreferenceStore().read(repository.account).newHomework
+            )
                 notifyNewHomework(items)
           } catch (e: CancellationException) {
             throw e
@@ -209,13 +247,22 @@ class HomeworkViewModel(private val repository: HomeworkRepository) : ViewModel(
   }
 
   fun close() {
+    if (closed) return
+    closed = true
+    sessionAvailable = false
+    sessionGeneration++
+    backgroundTaskRegistration.dispose()
     cancelRefresh()
     detailJob?.cancel()
     loginJob?.cancel()
     reminderJob?.cancel()
     foregroundCheckJob?.cancel()
+    backgroundCheckJob?.cancel()
     repository.close()
   }
+
+  private fun isCurrentSession(generation: Long): Boolean =
+      !closed && sessionAvailable && sessionGeneration == generation
 
   override fun onCleared() {
     close()

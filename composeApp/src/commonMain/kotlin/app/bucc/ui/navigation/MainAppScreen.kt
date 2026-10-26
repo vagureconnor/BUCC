@@ -14,7 +14,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.bucc.api.ConnectionMode
 import app.bucc.api.plane.PaperPlaneApi
@@ -141,6 +144,19 @@ internal fun dispatchNavigationBack(
   return navController.navigateBack()
 }
 
+@Composable
+internal fun SessionViewModelStore(sessionKey: Any, content: @Composable () -> Unit) {
+  key(sessionKey) {
+    val owner = remember { SessionViewModelStoreOwner() }
+    DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
+    CompositionLocalProvider(LocalViewModelStoreOwner provides owner, content = content)
+  }
+}
+
+private class SessionViewModelStoreOwner : ViewModelStoreOwner {
+  override val viewModelStore = ViewModelStore()
+}
+
 /**
  * 主界面支架组件。整合侧边栏、顶部栏和各业务模块的屏幕切换，协调 ViewModel 初始化与导航状态分发。
  *
@@ -163,6 +179,40 @@ fun MainAppScreen(
     modifier: Modifier = Modifier,
     navController: NavigationController = rememberNavigationController(),
     sessionAvailable: Boolean = true,
+) {
+  SessionViewModelStore(userData.schoolid to connectionMode) {
+    MainAppScreenContent(
+        userData = userData,
+        userInfo = userInfo,
+        connectionMode = connectionMode,
+        availableConnectionModes = availableConnectionModes,
+        onEnsureUserInfo = onEnsureUserInfo,
+        onConnectionModeSelected = onConnectionModeSelected,
+        onLogoutClick = onLogoutClick,
+        themeMode = themeMode,
+        onThemeModeSelected = onThemeModeSelected,
+        modifier = modifier,
+        navController = navController,
+        sessionAvailable = sessionAvailable,
+    )
+  }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalTime::class)
+@Composable
+private fun MainAppScreenContent(
+    userData: UserData,
+    userInfo: UserInfo?,
+    connectionMode: ConnectionMode,
+    availableConnectionModes: List<ConnectionMode>,
+    onEnsureUserInfo: () -> Unit,
+    onConnectionModeSelected: (ConnectionMode) -> Unit,
+    onLogoutClick: () -> Unit,
+    themeMode: ThemeMode,
+    onThemeModeSelected: (ThemeMode) -> Unit,
+    modifier: Modifier,
+    navController: NavigationController,
+    sessionAvailable: Boolean,
 ) {
   val scope = rememberCoroutineScope()
   val currentScreen = navController.currentScreen

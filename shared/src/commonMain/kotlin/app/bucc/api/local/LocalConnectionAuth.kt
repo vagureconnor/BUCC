@@ -11,6 +11,7 @@ import app.bucc.api.auth.SessionStatusResponse
 import app.bucc.api.auth.UserServiceBackend
 import app.bucc.api.auth.toUserFacingApiException
 import app.bucc.api.auth.userFacingMessageForCode
+import app.bucc.api.core.DefaultApiFactory
 import app.bucc.api.core.getCampusCardEngine
 import app.bucc.api.core.getDefaultEngine
 import app.bucc.api.core.getFinanceCardEngine
@@ -1074,6 +1075,7 @@ internal fun clearLocalConnectionSession(notifyExpiry: Boolean = false) {
   val hadSession = LocalAuthSessionStore.get() != null
   LocalAuthSessionStore.clear()
   LocalCookieStore.clear()
+  DefaultApiFactory.clearCachedBackends()
   LocalUpstreamClientProvider.reset()
   if (notifyExpiry && hadSession) app.bucc.api.auth.LocalSessionExpiryEvents.notifyExpired()
 }

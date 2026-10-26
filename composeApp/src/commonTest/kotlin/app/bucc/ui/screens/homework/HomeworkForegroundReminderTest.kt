@@ -12,6 +12,7 @@ import com.russhwolf.settings.Settings
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -109,6 +110,102 @@ class HomeworkForegroundReminderTest {
       gate.complete(Unit)
       runCurrent()
       assertEquals(setOf("existing"), seenIds(settings))
+    } finally {
+      viewModel.close()
+    }
+  }
+
+  @Test
+  fun `session becoming unavailable cancels an in flight foreground check`() = runTest {
+    Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+    val settings = MapSettings()
+    ScheduleStore.settings = settings
+    NotificationPreferenceStore(settings)
+        .write(
+            account,
+            NotificationPreferences(newHomework = false),
+        )
+    val gate = CompletableDeferred<Unit>()
+    val adapter = FixtureHomeworkAdapter(mutableListOf(homework("old-session")), gate)
+    val viewModel = viewModel(adapter, settings)
+    try {
+      viewModel.onAppForegrounded()
+      runCurrent()
+      assertEquals(1, adapter.loadCount)
+
+      viewModel.setSessionAvailable(false)
+      gate.complete(Unit)
+      runCurrent()
+
+      assertEquals(emptySet(), seenIds(settings))
+    } finally {
+      viewModel.close()
+    }
+  }
+
+  @Test
+  fun `closing the session unregisters its background refresh handler once`() = runTest {
+    Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+    val settings = MapSettings()
+    val repository =
+        HomeworkRepository(
+            account,
+            listOf(FixtureHomeworkAdapter(mutableListOf())),
+            settings,
+        ) { true }
+    var installedHandler: HomeworkBackgroundTaskHandler? = null
+    var disposeCalls = 0
+    val viewModel =
+        HomeworkViewModel(repository) { handler ->
+          installedHandler = handler
+          HomeworkBackgroundTaskRegistration {
+            disposeCalls++
+            if (installedHandler === handler) installedHandler = null
+          }
+        }
+
+    viewModel.close()
+    viewModel.close()
+
+    assertEquals(1, disposeCalls)
+    assertNull(installedHandler)
+  }
+
+  @Test
+  fun `session becoming unavailable cancels an in flight background check`() = runTest {
+    Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+    val settings = MapSettings()
+    ScheduleStore.settings = settings
+    val gate = CompletableDeferred<Unit>()
+    val adapter = FixtureHomeworkAdapter(mutableListOf(homework("old-session")), gate)
+    var installedHandler: HomeworkBackgroundTaskHandler? = null
+    val viewModel =
+        HomeworkViewModel(
+            HomeworkRepository(account, listOf(adapter), settings) { true },
+        ) { handler ->
+          installedHandler = handler
+          HomeworkBackgroundTaskRegistration {
+            if (installedHandler === handler) installedHandler = null
+          }
+        }
+    val completion = CompletableDeferred<String>()
+    try {
+      installedHandler!!.refresh(
+          object : HomeworkBackgroundTaskCompletion {
+            override fun finish(status: String) {
+              completion.complete(status)
+            }
+          }
+      )
+      runCurrent()
+      assertEquals(1, adapter.loadCount)
+
+      viewModel.setSessionAvailable(false)
+      gate.complete(Unit)
+      runCurrent()
+
+      assertEquals("cancelled", completion.await())
+      assertEquals(emptySet(), seenIds(settings))
     } finally {
       viewModel.close()
     }

@@ -21,8 +21,11 @@ object HomeworkNotificationBridge {
 object HomeworkBackgroundTaskBridge {
   private var handler: HomeworkBackgroundTaskHandler? = null
 
-  fun install(handler: HomeworkBackgroundTaskHandler) {
+  fun install(handler: HomeworkBackgroundTaskHandler): HomeworkBackgroundTaskRegistration {
     this.handler = handler
+    return HomeworkBackgroundTaskRegistration {
+      if (this.handler === handler) this.handler = null
+    }
   }
 
   fun run(completion: HomeworkBackgroundTaskCompletion) {
@@ -33,9 +36,9 @@ object HomeworkBackgroundTaskBridge {
 
 actual fun homeworkReminderPollIntervalMillis(): Long = 0L
 
-actual fun installHomeworkBackgroundTaskHandler(handler: HomeworkBackgroundTaskHandler) {
-  HomeworkBackgroundTaskBridge.install(handler)
-}
+actual fun installHomeworkBackgroundTaskHandler(
+    handler: HomeworkBackgroundTaskHandler
+): HomeworkBackgroundTaskRegistration = HomeworkBackgroundTaskBridge.install(handler)
 
 actual fun notifyNewHomework(items: List<HomeworkItem>) {
   items.forEach { item ->

@@ -16,5 +16,11 @@ interface HomeworkBackgroundTaskHandler {
   fun refresh(completion: HomeworkBackgroundTaskCompletion)
 }
 
+fun interface HomeworkBackgroundTaskRegistration {
+  fun dispose()
+}
+
 /** Installs the in-memory refresh action used by the iOS BGAppRefreshTask bridge. */
-expect fun installHomeworkBackgroundTaskHandler(handler: HomeworkBackgroundTaskHandler)
+expect fun installHomeworkBackgroundTaskHandler(
+    handler: HomeworkBackgroundTaskHandler
+): HomeworkBackgroundTaskRegistration

@@ -50,7 +50,7 @@ class LocalPlatformGateTests(unittest.TestCase):
         return version, source_sha, report
 
     def run_gate(self, directory, version, source_sha, report, report_status=False):
-        with patch("release_gate.signature_fingerprints", return_value=("a" * 64, "b" * 64)):
+        with patch("release_gate.signature_fingerprints", return_value=("a" * 64, "b" * 64)), patch("release_gate.validate_package_contents"):
             return run_local_gate(
                 directory,
                 version,

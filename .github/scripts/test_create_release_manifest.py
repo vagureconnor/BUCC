@@ -1,4 +1,5 @@
 import json
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -44,11 +45,30 @@ class CreateReleaseManifestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)
             version, source_sha = self.fixture(directory)
-            (directory / "proof.json").write_text(json.dumps({"accepted": True, "source_sha": source_sha}))
             with patch("create_release_manifest.android_fingerprint", return_value="1" * 64), patch("create_release_manifest.harmony_fingerprint", return_value="2" * 64):
                 create(directory, version, source_sha)
+            evidence = directory / "library-cancel-evidence.json"
+            evidence.write_text(json.dumps({
+                "schema": 1,
+                "source_sha": source_sha,
+                "created_and_cancelled_same_test_record": True,
+                "official_cancel_confirmed": True,
+                "timestamp": "2026-10-26T12:00:00Z",
+            }))
+            proof = directory / "acceptance-proof.json"
+            proof.write_text(json.dumps({
+                "schema": 1,
+                "source_sha": source_sha,
+                "manifest_sha256": hashlib.sha256((directory / "manifest.json").read_bytes()).hexdigest(),
+                "library_cancel": {
+                    "status": "passed",
+                    "evidence_file": evidence.name,
+                    "evidence_sha256": hashlib.sha256(evidence.read_bytes()).hexdigest(),
+                },
+            }))
             with patch("release_gate.signature_fingerprints", return_value=("1" * 64, "2" * 64)):
-                assets = validate(directory, version, source_sha, "1" * 64, "2" * 64, directory / "proof.json")
+                with patch("release_gate.validate_package_contents"):
+                    assets = validate(directory, version, source_sha, "1" * 64, "2" * 64, proof)
             self.assertEqual(6, len(assets))
 
 

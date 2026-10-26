@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import hashlib
 import json
 import os
@@ -12,6 +13,8 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+from package_validation import PackageError, validate_ios_ipa, validate_macos_dmg, validate_windows_exe
 
 REQUIRED = {"android", "ios", "macos-x86_64", "macos-arm64", "windows", "harmony"}
 
@@ -81,6 +84,73 @@ def signature_fingerprints(android_apk: Path, harmony_hap: Path) -> tuple[str, s
     return android_fingerprint(android_apk), harmony_fingerprint(harmony_hap)
 
 
+def validate_acceptance_proof(directory: Path, proof: Path, source_sha: str) -> None:
+    if proof.name != "acceptance-proof.json" or proof.parent.resolve() != directory.resolve():
+        raise GateError("正式发布验收证明必须是输入目录中的 acceptance-proof.json")
+    try:
+        proof_data = json.loads(proof.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise GateError("验收证明 JSON 格式错误") from error
+    expected_proof_fields = {"schema", "source_sha", "manifest_sha256", "library_cancel"}
+    if not isinstance(proof_data, dict) or set(proof_data) != expected_proof_fields:
+        raise GateError("验收证明字段不符合固定 schema")
+    if type(proof_data.get("schema")) is not int or proof_data["schema"] != 1 or proof_data.get("source_sha") != source_sha:
+        raise GateError("验收证明未批准该源码 SHA")
+    manifest = directory / "manifest.json"
+    if not manifest.is_file() or proof_data.get("manifest_sha256") != sha256(manifest):
+        raise GateError("验收证明 manifest SHA-256 不匹配")
+    cancellation = proof_data.get("library_cancel")
+    if not isinstance(cancellation, dict) or set(cancellation) != {"status", "evidence_file", "evidence_sha256"}:
+        raise GateError("图书馆取消验收证明字段不符合固定 schema")
+    if cancellation.get("status") != "passed" or cancellation.get("evidence_file") != "library-cancel-evidence.json":
+        raise GateError("图书馆取消验收未通过或证据文件名无效")
+    evidence_path = directory / "library-cancel-evidence.json"
+    if not evidence_path.is_file() or cancellation.get("evidence_sha256") != sha256(evidence_path):
+        raise GateError("图书馆取消验收证据缺失或 SHA-256 不匹配")
+    try:
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise GateError("图书馆取消验收证据 JSON 格式错误") from error
+    expected_evidence_fields = {
+        "schema", "source_sha", "created_and_cancelled_same_test_record",
+        "official_cancel_confirmed", "timestamp",
+    }
+    if not isinstance(evidence, dict) or set(evidence) != expected_evidence_fields:
+        raise GateError("图书馆取消验收证据必须仅包含固定脱敏字段")
+    if (
+        type(evidence.get("schema")) is not int
+        or evidence["schema"] != 1
+        or evidence.get("source_sha") != source_sha
+        or evidence.get("created_and_cancelled_same_test_record") is not True
+        or evidence.get("official_cancel_confirmed") is not True
+    ):
+        raise GateError("图书馆取消验收证据不符合 schema 或未确认官方取消")
+    timestamp = evidence.get("timestamp")
+    if not isinstance(timestamp, str):
+        raise GateError("图书馆取消验收证据缺少时间戳")
+    try:
+        parsed_timestamp = dt.datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        raise GateError("图书馆取消验收证据时间戳格式无效") from None
+    if parsed_timestamp.tzinfo is None:
+        raise GateError("图书馆取消验收证据时间戳必须包含时区")
+
+
+def validate_package_contents(platform: str, artifact: Path, version: str, item: dict) -> None:
+    try:
+        if platform == "ios":
+            if item.get("signing") != "unsigned":
+                raise PackageError("iOS manifest 必须如实标记为 unsigned")
+            validate_ios_ipa(artifact, version, 201)
+        elif platform in {"macos-x86_64", "macos-arm64"}:
+            arch = "x86_64" if platform == "macos-x86_64" else "arm64"
+            validate_macos_dmg(artifact, version, 201, arch)
+        elif platform == "windows":
+            validate_windows_exe(artifact, item.get("signing"))
+    except PackageError as error:
+        raise GateError(f"{platform} 实际包验证失败：{error}") from error
+
+
 def validate(
     directory: Path,
     version: str,
@@ -94,9 +164,7 @@ def validate(
     if require_acceptance:
         if proof is None or not proof.is_file():
             raise GateError("真实验收证明缺失；不得公开发布")
-        proof_data = json.loads(proof.read_text(encoding="utf-8"))
-        if proof_data.get("accepted") is not True or proof_data.get("source_sha") != source_sha:
-            raise GateError("验收证明未批准该源码 SHA")
+        validate_acceptance_proof(directory, proof, source_sha)
     manifest_path = directory / "manifest.json"
     if not manifest_path.is_file():
         raise GateError("缺少 manifest.json")
@@ -138,6 +206,7 @@ def validate(
             raise GateError(f"{platform} 缺少资产文件：{relative}")
         if not re.fullmatch(r"[0-9a-f]{64}", str(item.get("sha256", ""))) or sha256(artifact) != item["sha256"]:
             raise GateError(f"{platform} 资产 SHA-256 校验失败")
+        validate_package_contents(platform, artifact, version, item)
         resolved.append(artifact)
     missing = REQUIRED - by_platform.keys()
     if missing:
@@ -171,6 +240,7 @@ def publish_release(
     if len(filenames) != len(set(filenames)):
         raise GateError("平台资产文件名重复")
     manifest = directory / "manifest.json"
+    evidence = directory / "library-cancel-evidence.json"
     tag = f"v{version}"
     gh = shutil.which("gh")
     if not gh:
@@ -183,26 +253,39 @@ def publish_release(
             raise GateError(f"GitHub CLI {operation} 操作失败；上传或核验未完成，draft 保持未发布")
         return result.stdout
 
+    def assert_main_sha() -> str:
+        repository = run_gh("repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner").strip()
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+            raise GateError("无法确定 GitHub 仓库；main SHA 未核验，draft 保持未发布")
+        main_sha = run_gh("api", f"repos/{repository}/commits/main", "--jq", ".sha").strip()
+        if main_sha != source_sha:
+            raise GateError("GitHub main SHA 与待发布源码 SHA 不匹配；draft 保持未发布")
+        return main_sha
+
     try:
+        assert_main_sha()
         draft = json.loads(run_gh("release", "view", tag, "--json", "isDraft,targetCommitish,assets"))
     except json.JSONDecodeError as error:
         raise GateError("无法读取 GitHub draft 信息；draft 保持未发布") from error
     if draft.get("isDraft") is not True or draft.get("targetCommitish") != source_sha:
         raise GateError("GitHub draft 必须是同一待验收源码 SHA 的未发布草稿")
-    allowed_names = set(filenames) | {manifest.name, proof.name}
+    allowed_names = set(filenames) | {manifest.name, proof.name, evidence.name}
     existing_assets = draft.get("assets", [])
     if not isinstance(existing_assets, list) or any(
         not isinstance(asset, dict) or asset.get("name") not in allowed_names for asset in existing_assets
     ):
         raise GateError("GitHub draft 含有未声明资产；draft 保持未发布")
 
-    run_gh("release", "upload", tag, *(str(path) for path in [*assets, manifest, proof]), "--clobber")
+    run_gh("release", "upload", tag, *(str(path) for path in [*assets, manifest, proof, evidence]), "--clobber")
     with tempfile.TemporaryDirectory(prefix="bucc-release-remote-verify-") as temporary:
         download = ["release", "download", tag, "--dir", temporary]
-        for filename in [*filenames, manifest.name, proof.name]:
+        expected_remote_files = set(filenames) | {manifest.name, proof.name, evidence.name}
+        for filename in sorted(expected_remote_files):
             download.extend(["--pattern", filename])
         run_gh(*download)
         downloaded = Path(temporary)
+        if {path.name for path in downloaded.iterdir()} != expected_remote_files:
+            raise GateError("GitHub draft 下载资产集合不完整或多出文件；draft 保持未发布")
         validate(
             downloaded,
             version,
@@ -212,6 +295,13 @@ def publish_release(
             downloaded / proof.name,
         )
 
+    assert_main_sha()
+    try:
+        latest_draft = json.loads(run_gh("release", "view", tag, "--json", "isDraft,targetCommitish"))
+    except json.JSONDecodeError as error:
+        raise GateError("公开前无法复核 GitHub draft；draft 保持未发布") from error
+    if latest_draft.get("isDraft") is not True or latest_draft.get("targetCommitish") != source_sha:
+        raise GateError("公开前 GitHub draft SHA 不匹配；draft 保持未发布")
     run_gh("release", "edit", tag, "--draft=false", "--latest")
     return assets
 

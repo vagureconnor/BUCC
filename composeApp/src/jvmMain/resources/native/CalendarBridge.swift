@@ -31,7 +31,6 @@ private final class BuccCalendarImporter {
             completion(context, 0, 3)
             return
         }
-        if events.isEmpty { completion(context, 0, 0); return }
         let authorized: (Bool, Error?) -> Void = { [self] granted, _ in
             guard granted else { completion(context, 0, 1); return }
             queue.async {
@@ -55,6 +54,7 @@ private final class BuccCalendarImporter {
 
     private func save(_ events: [CourseEvent], account: String, term: String, reminder: Int32) throws -> Int {
         let key = "bucc.calendar.\(digest(account + "/" + term))"
+        if events.isEmpty && UserDefaults.standard.string(forKey: key) == nil { return 0 }
         let calendar: EKCalendar
         if let id = UserDefaults.standard.string(forKey: key),
            let existing = store.calendar(withIdentifier: id), existing.allowsContentModifications {
@@ -72,12 +72,35 @@ private final class BuccCalendarImporter {
             try store.saveCalendar(calendar, commit: true)
             UserDefaults.standard.set(calendar.calendarIdentifier, forKey: key)
         }
-        let start = Date(timeIntervalSince1970: Double(events.map(\.startMillis).min()!) / 1000)
-        let end = Date(timeIntervalSince1970: Double(events.map(\.endMillis).max()!) / 1000)
-        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: [calendar])
+        // Include the previous import range so moved/deleted classes are reconciled too.
+        let boundsKey = key + ".range"
+        let previous = UserDefaults.standard.array(forKey: boundsKey) as? [Double] ?? []
+        let starts = events.map { Double($0.startMillis) / 1000 }
+        let ends = events.map { Double($0.endMillis) / 1000 }
+        let anchor = starts.min() ?? previous.first ?? Date().timeIntervalSince1970
+        let year = 366.0 * 24 * 60 * 60
+        let lower = min(starts.min() ?? anchor, previous.first ?? anchor - year)
+        let upper = max(ends.max() ?? anchor, previous.last ?? anchor + year)
+        var managed: [EKEvent] = []
+        // EventKit predicates cover at most four years. Query bounded yearly windows.
+        var cursor = lower
+        var seen = Set<String>()
+        while cursor < upper {
+            let next = min(cursor + year, upper)
+            let predicate = store.predicateForEvents(withStart: Date(timeIntervalSince1970: cursor),
+                                                     end: Date(timeIntervalSince1970: next), calendars: [calendar])
+            for event in store.events(matching: predicate) {
+                if let url = event.url?.absoluteString, url.hasPrefix("bucc://course/"),
+                   seen.insert(event.eventIdentifier).inserted { managed.append(event) }
+            }
+            cursor = next
+        }
+        let wanted = Set(events.map { "bucc://course/\(digest($0.id))" })
         var existing: [String: EKEvent] = [:]
-        for event in store.events(matching: predicate) {
-            if let url = event.url?.absoluteString, url.hasPrefix("bucc://course/") { existing[url] = event }
+        for event in managed {
+            let url = event.url!.absoluteString
+            if wanted.contains(url) && existing[url] == nil { existing[url] = event }
+            else { try store.remove(event, span: .thisEvent, commit: false) }
         }
         for course in events {
             let url = "bucc://course/\(digest(course.id))"
@@ -96,6 +119,7 @@ private final class BuccCalendarImporter {
             existing[url] = event
         }
         try store.commit()
+        UserDefaults.standard.set([lower, upper], forKey: boundsKey)
         return Set(events.map(\.id)).count
     }
 }

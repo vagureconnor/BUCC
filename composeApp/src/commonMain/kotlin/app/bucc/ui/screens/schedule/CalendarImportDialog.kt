@@ -38,12 +38,12 @@ fun CalendarImportDialog(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
           Text("$termName · 整学期课程")
-          Text("创建独立的 BUCC 日历；重复导入会更新已有日程。时间冲突的课程也会一并导入。")
+          Text("创建独立的 BUCC 日历；重复导入会更新已有日程并移除已删课程。时间冲突的课程也会一并导入。")
           if (loading || importing) LinearProgressIndicator(Modifier.fillMaxWidth())
           preview?.let {
             Text(
                 "共 ${it.events.size} 个日程" +
-                    if (it.skipped > 0) "，${it.skipped} 项缺少有效日期或时间，暂不导入" else ""
+                    if (it.skipped > 0) "，${it.skipped} 项缺少有效日期或时间。请修复后再导入，以免移除已有日程。" else ""
             )
           }
           Text("一次设置全部课程提醒")
@@ -69,7 +69,7 @@ fun CalendarImportDialog(
       },
       confirmButton = {
         TextButton(
-            enabled = !loading && !importing && !preview?.events.isNullOrEmpty() && result == null,
+            enabled = !loading && !importing && preview != null && preview!!.skipped == 0 && result == null,
             onClick = {
               importing = true
               error = null

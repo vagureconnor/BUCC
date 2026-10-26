@@ -33,7 +33,8 @@ fun calendarCourseEvents(weeks: List<Pair<Week, WeeklySchedule>>): CalendarExpor
   val zone = TimeZone.of("+08:00")
   weeks.forEach { (week, schedule) ->
     val monday = LocalDate.parse(week.startDate.substringBefore('T').substringBefore(' '))
-    schedule.arrangedList.forEach { course ->
+    val occurrenceCounts = mutableMapOf<String, Int>()
+    schedule.arrangedList.distinct().forEach { course ->
       val day = course.dayOfWeek
       fun time(raw: String?): LocalTime? =
           raw?.let {
@@ -60,10 +61,12 @@ fun calendarCourseEvents(weeks: List<Pair<Week, WeeklySchedule>>): CalendarExpor
         val date = monday.plus(day - 1, DateTimeUnit.DAY)
         if (date > LocalDate.parse(week.endDate.substringBefore('T').substringBefore(' ')))
             return@forEach
+        val courseKey = "${week.term}/${week.serialNumber}/${course.courseCode}/${course.courseSerialNo}"
+        val occurrence = occurrenceCounts.getOrElse(courseKey) { 0 }
+        occurrenceCounts[courseKey] = occurrence + 1
         events +=
             CalendarCourseEvent(
-                id =
-                    "${week.term}/${week.serialNumber}/${course.courseCode}/${course.courseSerialNo}/$date/$start/$end",
+                id = "$courseKey/$occurrence",
                 title = course.courseName,
                 location = course.placeName.orEmpty(),
                 startMillis = LocalDateTime(date, start).toInstant(zone).toEpochMilliseconds(),

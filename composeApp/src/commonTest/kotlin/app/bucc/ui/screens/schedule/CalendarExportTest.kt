@@ -129,6 +129,14 @@ class CalendarExportTest {
     assertEquals(listOf("valid"), preview.events.map { it.title })
   }
 
+  @Test
+  fun reschedulingKeepsOccurrenceIdentityAndDeletingCourseRemovesItFromSnapshot() {
+    val before = calendarCourseEvents(listOf(week() to schedule(course("course", 1, "08:00", "09:00"))))
+    val after = calendarCourseEvents(listOf(week() to schedule(course("course", 3, "10:00", "11:00"))))
+    assertEquals(before.events.single().id, after.events.single().id)
+    assertEquals(emptyList(), calendarCourseEvents(listOf(week() to schedule())).events)
+  }
+
   private fun week() = Week("2026-04-13", "2026-04-19", "fixture-term", false, 1, "第1周")
 
   private fun schedule(vararg courses: CourseClass) =

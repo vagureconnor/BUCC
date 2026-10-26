@@ -1,0 +1,88 @@
+name: Android Signed Candidate APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-candidate:
+    name: Build signed Android candidate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out dispatched source SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify source SHA and release metadata
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          python3 .github/scripts/version_sync.py --check
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install Android platform and build tools
+        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
+      - name: Validate and install release keystore
+        shell: pwsh
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SIGNING_KEY)) {
+            throw 'Missing repository secret SIGNING_KEY (base64-encoded upload keystore).'
+          }
+          $bytes = [Convert]::FromBase64String($env:SIGNING_KEY)
+          [IO.File]::WriteAllBytes("$env:GITHUB_WORKSPACE/androidApp/release.jks", $bytes)
+      - name: Build signed release APK
+        env:
+          SIGNING_KEY: release.jks
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$SIGNING_STORE_PASSWORD"
+          test -n "$SIGNING_KEY_ALIAS"
+          test -n "$SIGNING_KEY_PASSWORD"
+          ./gradlew :androidApp:assembleRelease --no-configuration-cache
+      - name: Verify APK and prepare SHA-bound candidate metadata
+        run: |
+          set -euo pipefail
+          source_apk=androidApp/build/outputs/apk/release/androidApp-release.apk
+          mkdir -p candidate
+          version="$(sed -n 's/^project.version=//p' gradle.properties)"
+          apk="candidate/BUCC-Android-v${version}.apk"
+          cp "$source_apk" "$apk"
+          apksigner_output="$("$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk")"
+          printf '%s\n' "$apksigner_output"
+          fingerprint="$(printf '%s\n' "$apksigner_output" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {gsub(":", "", $2); print tolower($2)}')"
+          [[ "$fingerprint" =~ ^[0-9a-f]{64}$ ]]
+          python3 - "$apk" "$version" "$GITHUB_SHA" "$fingerprint" <<'PY'
+          import hashlib, json, pathlib, sys
+          apk = pathlib.Path(sys.argv[1])
+          metadata = {
+              "platform": "android",
+              "version": sys.argv[2],
+              "source_sha": sys.argv[3],
+              "arch": "universal",
+              "file": apk.name,
+              "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
+              "signing_fingerprint": sys.argv[4],
+          }
+          pathlib.Path("candidate/metadata.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+          PY
+      - name: Upload signed APK candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: BUCC-Android-Candidate-${{ github.sha }}
+          path: candidate/*
+          if-no-files-found: error
+          retention-days: 14

@@ -30,6 +30,26 @@ class AndroidReleaseSigningContractTests(unittest.TestCase):
         self.assertIn("apksigner\" verify --verbose --print-certs", release)
         self.assertNotIn("bucc.android.unsignedRelease", release)
 
+    def test_candidate_workflows_are_manual_signed_or_x64_artifact_only(self):
+        android = (ROOT / ".github/workflows/android-release-build.yml").read_text(encoding="utf-8")
+        windows = (ROOT / ".github/workflows/windows-build.yml").read_text(encoding="utf-8")
+        for workflow in (android, windows):
+            self.assertIn("workflow_dispatch:", workflow)
+            self.assertNotIn("  push:", workflow)
+            self.assertIn("ref: ${{ github.sha }}", workflow)
+            self.assertIn("source_sha", workflow)
+            self.assertIn("actions/upload-artifact@v4", workflow)
+            self.assertNotIn("gh release", workflow)
+            self.assertNotIn("softprops/action-gh-release", workflow)
+            self.assertNotIn("App Store", workflow)
+        for secret in ("SIGNING_KEY", "SIGNING_STORE_PASSWORD", "SIGNING_KEY_ALIAS", "SIGNING_KEY_PASSWORD"):
+            self.assertIn(f"secrets.{secret}", android)
+        self.assertIn("apksigner", android)
+        self.assertIn("$env:GOOS = 'windows'", windows)
+        self.assertIn("$env:GOARCH = 'amd64'", windows)
+        self.assertIn("$env:BUCC_BASH", windows)
+        self.assertIn("$env:BUCC_GO", windows)
+
 
 if __name__ == "__main__":
     unittest.main()

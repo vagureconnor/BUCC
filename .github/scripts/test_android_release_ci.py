@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import unittest
 
 
@@ -13,7 +14,8 @@ class AndroidReleaseSigningContractTests(unittest.TestCase):
         self.assertIn("doLast {", build)
         self.assertIn("if (unsignedRelease && hasAnyReleaseSigning)", build)
         self.assertIn("if (!unsignedRelease && !hasReleaseSigning)", build)
-        self.assertIn("it.name in setOf(\"packageRelease\", \"packageReleaseBundle\", \"bundleRelease\", \"validateSigningRelease\")", build)
+        hooked_tasks = set(re.findall(r'"(packageRelease|packageReleaseBundle|bundleRelease|validateSigningRelease)"', build))
+        self.assertEqual({"packageRelease", "packageReleaseBundle", "bundleRelease", "validateSigningRelease"}, hooked_tasks)
         self.assertIn("signingConfig = if (hasReleaseSigning && !unsignedRelease) signingConfigs.getByName(\"release\") else null", build)
         for key in ("SIGNING_KEY", "SIGNING_STORE_PASSWORD", "SIGNING_KEY_ALIAS", "SIGNING_KEY_PASSWORD"):
             self.assertIn(key, build)

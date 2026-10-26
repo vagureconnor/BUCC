@@ -86,7 +86,7 @@ function Read-NativeInfo([string]$Executable, [string[]]$Arguments) {
 }
 $javaInfo = Read-NativeInfo $JavaExe @('-XshowSettings:properties', '-version')
 if ($javaInfo -notmatch 'os\.arch\s*=\s*amd64' -or $javaInfo -notmatch 'version "21([.]|")') { throw 'The configured runtime must be a working x64 JDK 21.' }
-$pythonInfo = & $PythonExe -c 'import struct,sys,sysconfig; print(f"{sys.version_info.major}.{sys.version_info.minor}|{sysconfig.get_platform()}|{struct.calcsize(chr(80)) * 8}")'
+$pythonInfo = & $PythonExe -c 'import struct,sys,sysconfig; print(str(sys.version_info.major)+chr(46)+str(sys.version_info.minor)+chr(124)+sysconfig.get_platform()+chr(124)+str(struct.calcsize(chr(80))*8))'
 if ($LASTEXITCODE -ne 0 -or $pythonInfo.Trim() -ne '3.14|win-amd64|64') { throw 'The configured Python must be Python 3.14 x64.' }
 $goInfo = Read-NativeInfo $GoExe @('version')
 if ($goInfo -notmatch 'windows/amd64') { throw 'The configured Go compiler must target Windows x64.' }

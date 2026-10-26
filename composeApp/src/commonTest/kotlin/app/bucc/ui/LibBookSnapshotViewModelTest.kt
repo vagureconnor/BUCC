@@ -5,7 +5,6 @@ import app.bucc.model.dto.LibBookAreaDetailDto
 import app.bucc.model.dto.LibBookAreaDto
 import app.bucc.model.dto.LibBookLibraryDto
 import app.bucc.model.dto.LibBookMapImagesDto
-import app.bucc.model.dto.LibBookQrTarget
 import app.bucc.model.dto.LibBookReserveRequest
 import app.bucc.model.dto.LibBookReserveResponse
 import app.bucc.model.dto.LibBookSeatDto
@@ -103,38 +102,6 @@ class LibBookSnapshotViewModelTest {
     runCurrent()
     assertEquals(visibleBefore, vm.uiState.value.seats)
     assertTrue(vm.uiState.value.seatStatusStale)
-  }
-
-  @Test
-  fun `valid QR target selects seat but does not reserve before explicit submit`() = runTest {
-    Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-    val api = SnapshotFake()
-    val vm = LibBookViewModel(api, currentDateProvider = { DAY_ONE })
-
-    vm.openQrTarget(LibBookQrTarget("A", "seat-7", DAY_TWO))
-    advanceUntilIdle()
-
-    assertEquals("seat-7", vm.uiState.value.selectedSeatId)
-    assertEquals(0, api.reserveCalls)
-
-    vm.submitReservation()
-    advanceUntilIdle()
-    assertEquals(1, api.reserveCalls)
-  }
-
-  @Test
-  fun `QR target with unavailable explicit day stops before seat lookup`() = runTest {
-    Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-    val api = SnapshotFake()
-    val vm = LibBookViewModel(api, currentDateProvider = { DAY_ONE })
-
-    vm.openQrTarget(LibBookQrTarget("A", "seat-7", "2026-10-19"))
-    advanceUntilIdle()
-
-    assertEquals("2026-10-19", vm.uiState.value.selectedDay)
-    assertTrue(vm.uiState.value.seatsError.orEmpty().contains("指定日期"))
-    assertTrue(api.snapshotCalls.isEmpty())
-    assertEquals(0, api.reserveCalls)
   }
 
   @Test

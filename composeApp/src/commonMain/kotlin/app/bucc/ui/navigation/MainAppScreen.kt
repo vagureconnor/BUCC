@@ -35,7 +35,6 @@ import app.bucc.td.TdRuntime
 import app.bucc.ui.common.components.AppTopBar
 import app.bucc.ui.common.components.Sidebar
 import app.bucc.ui.common.util.BackHandlerCompat
-import app.bucc.ui.common.util.supportsQrCamera
 import app.bucc.ui.screens.attendance.AttendanceScreen
 import app.bucc.ui.screens.attendance.AttendanceViewModel
 import app.bucc.ui.screens.bykc.*
@@ -63,7 +62,6 @@ import app.bucc.ui.screens.ihome.IhomeViewModel
 import app.bucc.ui.screens.libbook.LibBookBookingsScreen
 import app.bucc.ui.screens.libbook.LibBookHomeScreen
 import app.bucc.ui.screens.libbook.LibBookReserveScreen
-import app.bucc.ui.screens.libbook.LibBookScanScreen
 import app.bucc.ui.screens.libbook.LibBookSeminarScreen
 import app.bucc.ui.screens.libbook.LibBookSeminarViewModel
 import app.bucc.ui.screens.libbook.LibBookViewModel
@@ -123,7 +121,6 @@ enum class AppScreen {
   LIBBOOK_RESERVE,
   LIBBOOK_BOOKINGS,
   LIBBOOK_SEMINAR,
-  LIBBOOK_SCAN,
   YGDK_HOME,
   YGDK_FORM,
 }
@@ -182,7 +179,6 @@ fun MainAppScreen(
         AppScreen.LIBBOOK_RESERVE,
         AppScreen.LIBBOOK_BOOKINGS,
         AppScreen.LIBBOOK_SEMINAR,
-        AppScreen.LIBBOOK_SCAN,
     )
   }
 
@@ -272,7 +268,6 @@ fun MainAppScreen(
             LibBookSeminarViewModel()
           }
       else null
-  val qrCameraSupported = remember { supportsQrCamera() }
   val libBookViewModel: LibBookViewModel? =
       if (shouldKeepLibBookViewModel) {
         viewModel(key = "libbook-${userData.schoolid}") { LibBookViewModel() }
@@ -906,7 +901,6 @@ fun MainAppScreen(
         AppScreen.CAMPUS_FINANCE -> "校园财务"
         AppScreen.LIBBOOK_HOME -> "图书馆空间预约"
         AppScreen.LIBBOOK_SEMINAR -> "图书馆研讨间预约"
-        AppScreen.LIBBOOK_SCAN -> "扫码预约"
         AppScreen.LIBBOOK_RESERVE -> "预约座位"
         AppScreen.LIBBOOK_BOOKINGS -> "我的座位预约"
         AppScreen.YGDK_HOME -> "阳光打卡"
@@ -964,8 +958,6 @@ fun MainAppScreen(
         when (currentScreen) {
           AppScreen.HOME ->
               HomeScreen(
-                  onScanLibraryQr =
-                      if (qrCameraSupported) ({ navigateTo(AppScreen.LIBBOOK_SCAN) }) else null,
                   upcomingClasses = upcomingScheduleState.classes,
                   signinClasses = signinUiState.classes,
                   now = homeNow,
@@ -1333,8 +1325,6 @@ fun MainAppScreen(
                     navigateTo(AppScreen.LIBBOOK_RESERVE)
                   },
                   onSeminarClick = { navigateTo(AppScreen.LIBBOOK_SEMINAR) },
-                  onScanClick =
-                      if (qrCameraSupported) ({ navigateTo(AppScreen.LIBBOOK_SCAN) }) else null,
                   onBookingsClick = {
                     libBookViewModel?.ensureBookingsLoaded()
                     navigateTo(AppScreen.LIBBOOK_BOOKINGS)
@@ -1350,14 +1340,6 @@ fun MainAppScreen(
           AppScreen.LIBBOOK_BOOKINGS ->
               libBookViewModel?.let { LibBookBookingsScreen(viewModel = it) }
           AppScreen.LIBBOOK_SEMINAR -> libBookSeminarViewModel?.let { LibBookSeminarScreen(it) }
-          AppScreen.LIBBOOK_SCAN ->
-              LibBookScanScreen(
-                  onSeat = { target ->
-                    libBookViewModel?.openQrTarget(target)
-                    navigateTo(AppScreen.LIBBOOK_RESERVE)
-                  },
-                  onBack = { navController.navigateBack() },
-              )
         }
       }
     }

@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
@@ -46,6 +45,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.bucc.getPlatform
 import app.bucc.model.dto.CourseClass
 import app.bucc.model.dto.SigninClassDto
 import app.bucc.repository.UpcomingClass
@@ -89,7 +89,6 @@ internal fun HomeScreen(
     onOpenTodos: () -> Unit,
     onFeatureOrderChange: (String, List<String>) -> Unit,
     onCourseClick: (CourseClass) -> Unit,
-    onScanLibraryQr: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
   val pullRefreshState = rememberPullRefreshState(refreshing = isRefreshing, onRefresh = onRefresh)
@@ -109,6 +108,7 @@ internal fun HomeScreen(
       }
   val progress =
       remember(progressOccurrences, now) { todayCourseProgress(progressOccurrences, now) }
+  val isMobile = getPlatform().isMobile
   val scheduleContent: LazyListScope.() -> Unit = {
     item { SectionHeading("课表", "今天无课或已全部结束时显示下一有课日") }
     if (error != null) item { HomeErrorCard(error, onRetrySchedule) }
@@ -163,17 +163,6 @@ internal fun HomeScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
           }
-          onScanLibraryQr?.let { scan ->
-            OutlinedButton(onClick = scan, modifier = Modifier.padding(start = 8.dp)) {
-              Icon(
-                  Icons.Default.QrCodeScanner,
-                  contentDescription = null,
-                  modifier = Modifier.size(18.dp),
-              )
-              Spacer(Modifier.width(6.dp))
-              Text("扫码预约")
-            }
-          }
           if (wide)
               featureSections.forEach { section ->
                 OutlinedButton(
@@ -198,7 +187,7 @@ internal fun HomeScreen(
             }
       }
     }
-    if (wide) {
+    if (wide && !isMobile) {
       Column(
           Modifier.fillMaxSize().padding(20.dp),
           verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -264,14 +253,11 @@ internal fun HomeScreen(
               else HomeEmptyCard("当前没有待办", "新的课程与任务会显示在这里")
             }
           } else {
-            val visibleCount = visibleTodos.size.coerceAtMost(3)
-            val viewportHeight = 168.dp * visibleCount + 12.dp * (visibleCount - 1)
-            LazyColumn(
-                modifier =
-                    Modifier.fillMaxWidth().height(viewportHeight).testTag("home-todo-viewport"),
+            Column(
+                Modifier.fillMaxWidth().testTag("home-todo-viewport"),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-              items(visibleTodos, key = { "home-todo:${it.id}" }) { todo ->
+              visibleTodos.take(3).forEach { todo ->
                 HomeTodoCard(
                     todo,
                     signingTodoId == todo.id,
@@ -283,7 +269,7 @@ internal fun HomeScreen(
             }
           }
         }
-        item { TextButton(onClick = onOpenTodos) { Text("查看全部待办") } }
+        item { TextButton(onClick = onOpenTodos) { Text("查看所有待办") } }
         item { Spacer(Modifier.height(12.dp)) }
       }
     }

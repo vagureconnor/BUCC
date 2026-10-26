@@ -8,7 +8,6 @@ import app.bucc.model.dto.LibBookAreaDto
 import app.bucc.model.dto.LibBookBookingsResponse
 import app.bucc.model.dto.LibBookLibraryDto
 import app.bucc.model.dto.LibBookMapImagesDto
-import app.bucc.model.dto.LibBookQrTarget
 import app.bucc.model.dto.LibBookReserveRequest
 import app.bucc.model.dto.LibBookSeatDto
 import app.bucc.model.dto.LibBookTimeSlotDto
@@ -65,8 +64,6 @@ class LibBookViewModel(
   private var detailVersion = 0
   private var areasVersion = 0
   private var librariesVersion = 0
-  private var qrTarget: LibBookQrTarget? = null
-  private var pendingQrSeat: String? = null
   private var initialLoadedOnce = false
   private var bookingsLoadedOnce = false
   private val _uiState = MutableStateFlow(LibBookUiState(selectedDay = currentDateProvider()))
@@ -84,8 +81,6 @@ class LibBookViewModel(
     areasVersion++
     detailVersion++
     seatsVersion++
-    qrTarget = null
-    pendingQrSeat = null
     initialLoadedOnce = false
     bookingsLoadedOnce = false
     _uiState.value = LibBookUiState(selectedDay = _uiState.value.selectedDay)
@@ -143,8 +138,6 @@ class LibBookViewModel(
 
   fun selectLibrary(libraryId: String) {
     if (_uiState.value.isSubmitting) return
-    qrTarget = null
-    pendingQrSeat = null
     areasVersion++
     detailVersion++
     seatsVersion++
@@ -167,8 +160,6 @@ class LibBookViewModel(
 
   fun selectStorey(storeyId: String?) {
     if (_uiState.value.isSubmitting) return
-    qrTarget = null
-    pendingQrSeat = null
     areasVersion++
     detailVersion++
     seatsVersion++
@@ -188,8 +179,6 @@ class LibBookViewModel(
 
   fun selectArea(areaId: String) {
     if (_uiState.value.isSubmitting) return
-    qrTarget = null
-    pendingQrSeat = null
     areasVersion++
     detailVersion++
     seatsVersion++
@@ -239,32 +228,8 @@ class LibBookViewModel(
 
   fun startNormalReservation() {
     if (_uiState.value.isSubmitting) return
-    qrTarget = null
-    pendingQrSeat = null
     initialLoadedOnce = false
     loadLibraries()
-  }
-
-  fun openQrTarget(target: LibBookQrTarget) {
-    if (_uiState.value.isSubmitting) return
-    librariesVersion++
-    areasVersion++
-    detailVersion++
-    seatsVersion++
-    qrTarget = target
-    pendingQrSeat = target.seatId
-    initialLoadedOnce = true
-    _uiState.value =
-        _uiState.value.copy(
-            selectedAreaId = target.areaId,
-            selectedDay = target.day ?: currentDateProvider(),
-            selectedSlotId = null,
-            selectedSeatId = null,
-            seats = emptyList(),
-            areaDetail = null,
-            actionMessage = null,
-        )
-    loadAreaDetailAndSeats(target.areaId)
   }
 
   fun selectSeat(seatId: String) {
@@ -470,15 +435,6 @@ class LibBookViewModel(
             if (version != detailVersion || _uiState.value.selectedAreaId != areaId)
                 return@onSuccess
             val requestedDay = _uiState.value.selectedDay
-            if (qrTarget?.day != null && requestedDay !in detail.availableDates) {
-              _uiState.value =
-                  _uiState.value.copy(
-                      areaDetail = detail,
-                      isSeatsLoading = false,
-                      seatsError = "二维码指定日期当前不可预约，请返回选择其他日期",
-                  )
-              return@onSuccess
-            }
             val day =
                 requestedDay.takeIf { it in detail.availableDates }
                     ?: detail.availableDates.firstOrNull()
@@ -524,13 +480,12 @@ class LibBookViewModel(
           .onSuccess { snapshot ->
             if (!currentRequest()) return@onSuccess
             val seats = snapshot.seats
-            val requestedSeat = pendingQrSeat ?: _uiState.value.selectedSeatId
+            val requestedSeat = _uiState.value.selectedSeatId
             val selectedSeat =
                 requestedSeat?.takeIf { id ->
                   seats.any { it.id == id && it.isAvailable && it.inLabel }
                 }
             val lostSelection = requestedSeat != null && selectedSeat == null
-            pendingQrSeat = null
             _uiState.value =
                 _uiState.value.copy(
                     isSeatsLoading = false,

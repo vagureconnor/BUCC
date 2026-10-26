@@ -32,7 +32,6 @@ enum class FeatureIcon(val vector: ImageVector) {
   CGYY_BOOKINGS(Icons.AutoMirrored.Filled.EventNote),
   LIBRARY_SEAT(Icons.Default.EventSeat),
   LIBRARY_SEMINAR(Icons.Default.Groups),
-  LIBRARY_SCAN(Icons.Default.QrCode2),
   LIBRARY_BOOKINGS(Icons.Default.Bookmarks),
   TODO_BYKC(Icons.Default.HowToReg),
   TODO_JUDGE(Icons.Default.Code),

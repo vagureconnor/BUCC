@@ -18,7 +18,6 @@ fun LibBookHomeScreen(
     onReserveClick: () -> Unit,
     onBookingsClick: () -> Unit,
     onSeminarClick: () -> Unit,
-    onScanClick: (() -> Unit)? = null,
 ) {
   Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
     LazyVerticalGrid(
@@ -44,15 +43,6 @@ fun LibBookHomeScreen(
             onClick = onSeminarClick,
         )
       }
-      if (onScanClick != null)
-          item {
-            BykcFeatureCard(
-                title = "扫码预约",
-                description = "扫描图书馆座位二维码",
-                icon = FeatureIcon.LIBRARY_SCAN.vector,
-                onClick = onScanClick,
-            )
-          }
       item {
         BykcFeatureCard(
             title = "我的预约",

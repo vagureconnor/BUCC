@@ -71,7 +71,7 @@ struct Index {
   private async perform(request: HostRequest, token: CancellationToken): Promise<HostResult> {
     const cancelled = (): boolean => token.cancelled;
     switch (request.operation) {
-      case 'pickPhoto': case 'capturePhoto': case 'pickLibraryAttachment': case 'scanLibraryQr':
+      case 'pickPhoto': case 'capturePhoto': case 'pickLibraryAttachment':
         return this.media!.run(request.operation, cancelled);
       case 'scheduleNotifications': {
         const payload = JSON.parse(request.payload) as NotificationPayload;

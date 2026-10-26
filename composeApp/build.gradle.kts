@@ -47,9 +47,6 @@ kotlin {
     androidMain.dependencies {
       implementation("org.jetbrains.compose.ui:ui-tooling-preview:$composeVersion")
       implementation(libs.androidx.activity.compose)
-      implementation("androidx.camera:camera-camera2:1.4.2")
-      implementation("androidx.camera:camera-lifecycle:1.4.2")
-      implementation("androidx.camera:camera-view:1.4.2")
       implementation("com.google.zxing:core:3.5.3")
     }
     commonMain.dependencies {

@@ -4,16 +4,12 @@ import cameraPicker from '@ohos.multimedia.cameraPicker';
 import fileIo from '@ohos.file.fs';
 import photoAccessHelper from '@ohos.file.photoAccessHelper';
 import picker from '@ohos.file.picker';
-import scanBarcode from '@hms.core.scan.scanBarcode';
-import scanCore from '@hms.core.scan.scanCore';
-import type { BusinessError } from '@ohos.base';
 
 export interface MediaResult {
   status: string;
   bytes?: ArrayBuffer;
   fileName?: string;
   mimeType?: string;
-  value?: string;
 }
 
 const IMAGE_MAX_BYTES: number = 20 * 1024 * 1024;
@@ -142,9 +138,6 @@ export class MediaHost {
         case 'pickLibraryAttachment':
           output = await this.pickLibraryAttachment(isCancelled);
           break;
-        case 'scanLibraryQr':
-          output = await this.scanLibraryQr(isCancelled);
-          break;
         default:
           return result('error');
       }
@@ -214,25 +207,4 @@ export class MediaHost {
     return selected;
   }
 
-  private async scanLibraryQr(isCancelled: () => boolean): Promise<MediaResult> {
-    try {
-      const scanned: scanBarcode.ScanResult = await scanBarcode.startScanForResult(this.context, {
-        scanTypes: [scanCore.ScanType.QR_CODE],
-        enableMultiMode: false
-      });
-      if (isCancelled()) {
-        return result('cancelled');
-      }
-      return { status: 'success', value: scanned.originalValue };
-    } catch (error) {
-      if (isCancelled()) {
-        return result('cancelled');
-      }
-      const scanError: BusinessError = error as BusinessError;
-      if (scanError.code === 1000500002) {
-        return result('cancelled');
-      }
-      return result('error');
-    }
-  }
 }

@@ -5,6 +5,7 @@ import importlib.util
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -97,10 +98,27 @@ class AndroidBuilderTests(unittest.TestCase):
 
 class AppleBuilderTests(unittest.TestCase):
     def test_script_requires_clean_source_before_any_build(self):
-        result = subprocess.run(['bash', str(ROOT / 'script/build_apple_local.sh'), 'ios', '/tmp/bucc-test-output'],
-                                cwd=ROOT, capture_output=True, text=True)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('Commit source changes', result.stderr)
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Path(temporary)
+            (fixture / 'script').mkdir()
+            shutil.copy2(ROOT / 'script/build_apple_local.sh', fixture / 'script/build_apple_local.sh')
+            subprocess.run(['git', 'init', '-q', str(fixture)], check=True, capture_output=True)
+            # Use an isolated dirty repo and a fake host identity on every OS.
+            # Never invoke an Apple build from a unit test against the real checkout.
+            binaries = fixture / 'bin'
+            binaries.mkdir()
+            (binaries / 'uname').write_text('#!/bin/sh\necho Darwin\n')
+            (binaries / 'uname').chmod(0o755)
+            marker = fixture / 'unexpected-build'
+            (binaries / 'xcodebuild').write_text('#!/bin/sh\ntouch "' + str(marker) + '"\nexit 1\n')
+            (binaries / 'xcodebuild').chmod(0o755)
+            env = dict(os.environ, PATH=str(binaries) + os.pathsep + os.environ.get('PATH', ''))
+            result = subprocess.run(['bash', str(fixture / 'script/build_apple_local.sh'), 'ios', str(fixture / 'output')],
+                                    cwd=fixture, env=env, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('Commit source changes', result.stderr)
+            self.assertFalse(marker.exists())
+            self.assertFalse((fixture / 'output').exists())
 
     def test_apple_script_supports_rosetta_architecture_and_checks_target_runtimes(self):
         script = (ROOT / 'script/build_apple_local.sh').read_text()

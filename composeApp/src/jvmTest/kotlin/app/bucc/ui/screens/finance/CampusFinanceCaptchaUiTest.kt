@@ -111,9 +111,10 @@ class CampusFinanceCaptchaUiTest {
     setScreen(session, recharge, loaders)
 
     compose.onNodeWithText("网费").performClick()
-    compose.waitUntil(5_000) { session.ensureCalls == 1 && loaders.internetCalls == 1 }
-    compose.waitUntil(5_000) {
-      compose.onAllNodesWithText("网费余额").fetchSemanticsNodes().size == 1
+    waitForInternetForm()
+    compose.runOnIdle {
+      assertEquals(1, session.ensureCalls)
+      assertEquals(1, loaders.internetCalls)
     }
     compose.onAllNodesWithText("登录验证码").assertCountEquals(0)
     compose.onAllNodesWithText("网费信息尚未完成本次登录验证码验证。").assertCountEquals(0)
@@ -263,6 +264,7 @@ class CampusFinanceCaptchaUiTest {
     compose.onNodeWithText("登录验证码").performTextInput("login-demo")
     compose.onNodeWithText("验证并继续").performClick()
     compose.waitUntil(5_000) { loaders.internetCalls == 1 }
+    waitForInternetForm()
     compose.onNodeWithText("充值金额（元）").performScrollTo().performTextInput("1")
     compose.onNodeWithText("充值验证码").performScrollTo().performTextInput("synthetic-code")
     compose.onNodeWithText("提交充值并打开支付页面").performScrollTo().performClick()
@@ -291,6 +293,7 @@ class CampusFinanceCaptchaUiTest {
     compose.onNodeWithText("登录验证码").performTextInput("login-demo")
     compose.onNodeWithText("验证并继续").performClick()
     compose.waitUntil(5_000) { loaders.internetCalls == 1 }
+    waitForInternetForm()
     compose.onNodeWithText("充值金额（元）").performScrollTo().performTextInput("1")
     compose.onNodeWithText("充值验证码").performScrollTo().performTextInput("old-code")
     compose.onNodeWithText("提交充值并打开支付页面").performScrollTo().performClick()
@@ -340,6 +343,7 @@ class CampusFinanceCaptchaUiTest {
     compose.onNodeWithText("登录验证码").performTextInput("login-demo")
     compose.onNodeWithText("验证并继续").performClick()
     compose.waitUntil(5_000) { loaders.internetCalls == 1 }
+    waitForInternetForm()
     compose.onNodeWithText("充值金额（元）").performScrollTo().performTextInput("10")
     compose.onNodeWithText("充值验证码").performScrollTo().performTextInput("synthetic-code")
     compose.onNodeWithText("提交充值并打开支付页面").performScrollTo().performClick()
@@ -374,6 +378,13 @@ class CampusFinanceCaptchaUiTest {
     compose.onNodeWithText("充值验证码").performScrollTo().performTextInput("retry-code")
     compose.onNodeWithText("提交充值并打开支付页面").performScrollTo().assertIsEnabled()
     assertEquals(0, recharge.createCalls)
+  }
+
+  private fun waitForInternetForm() {
+    compose.waitUntil(5_000) {
+      compose.onAllNodesWithText("充值金额（元）").fetchSemanticsNodes().size == 1
+    }
+    compose.waitForIdle()
   }
 
   private fun setScreen(

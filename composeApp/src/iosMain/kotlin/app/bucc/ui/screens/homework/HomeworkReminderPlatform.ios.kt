@@ -23,9 +23,7 @@ object HomeworkBackgroundTaskBridge {
 
   fun install(handler: HomeworkBackgroundTaskHandler): HomeworkBackgroundTaskRegistration {
     this.handler = handler
-    return HomeworkBackgroundTaskRegistration {
-      if (this.handler === handler) this.handler = null
-    }
+    return HomeworkBackgroundTaskRegistration { if (this.handler === handler) this.handler = null }
   }
 
   fun run(completion: HomeworkBackgroundTaskCompletion) {

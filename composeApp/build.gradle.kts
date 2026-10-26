@@ -220,6 +220,21 @@ val setMacBundleVersion by
           macInfoPlist.absolutePath,
       )
     }
+val setMacReleaseBundleVersion by
+    tasks.registering(Exec::class) {
+      dependsOn("createReleaseDistributable")
+      commandLine(
+          "/usr/libexec/PlistBuddy",
+          "-c",
+          "Set :CFBundleVersion $macBundleVersion",
+          macReleaseAppBundle.resolve("Contents/Info.plist").absolutePath,
+      )
+    }
+
+if (System.getProperty("os.name").startsWith("Mac", ignoreCase = true)) {
+  signTrimmedMacReleaseBundle.configure { dependsOn(setMacReleaseBundleVersion) }
+}
+
 val signMacBundleAfterVersionUpdate by
     tasks.registering(Exec::class) {
       dependsOn(setMacBundleVersion)

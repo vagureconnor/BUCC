@@ -138,7 +138,15 @@ class LibBookViewModelTest {
 private class FakeLibBookApi(
     private val reservation: LibBookReserveResponse = LibBookReserveResponse(true, "预约成功"),
     private val bookings: List<LibBookBookingDto> =
-        listOf(LibBookBookingDto(id = "b1", nameMerge = "一层 / 101", status = "2", statusName = "已预约", cancellationAllowed = true))
+        listOf(
+            LibBookBookingDto(
+                id = "b1",
+                nameMerge = "一层 / 101",
+                status = "2",
+                statusName = "已预约",
+                cancellationAllowed = true,
+            )
+        ),
 ) : LibBookApi() {
   var librariesCalls = 0
   var areasCalls = 0

@@ -32,8 +32,9 @@ internal constructor(
     installBackgroundTaskHandler:
         (HomeworkBackgroundTaskHandler) -> HomeworkBackgroundTaskRegistration,
 ) : ViewModel() {
-  constructor(repository: HomeworkRepository) :
-      this(repository, ::installHomeworkBackgroundTaskHandler)
+  constructor(
+      repository: HomeworkRepository
+  ) : this(repository, ::installHomeworkBackgroundTaskHandler)
 
   val state = repository.state
   private val refreshJobs = mutableMapOf<HomeworkSource, Job>()

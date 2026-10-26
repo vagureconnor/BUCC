@@ -152,7 +152,9 @@ class HomeworkForegroundReminderTest {
             account,
             listOf(FixtureHomeworkAdapter(mutableListOf())),
             settings,
-        ) { true }
+        ) {
+          true
+        }
     var installedHandler: HomeworkBackgroundTaskHandler? = null
     var disposeCalls = 0
     val viewModel =

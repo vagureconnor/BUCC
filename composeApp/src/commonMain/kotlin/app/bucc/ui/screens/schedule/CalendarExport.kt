@@ -61,7 +61,8 @@ fun calendarCourseEvents(weeks: List<Pair<Week, WeeklySchedule>>): CalendarExpor
         val date = monday.plus(day - 1, DateTimeUnit.DAY)
         if (date > LocalDate.parse(week.endDate.substringBefore('T').substringBefore(' ')))
             return@forEach
-        val courseKey = "${week.term}/${week.serialNumber}/${course.courseCode}/${course.courseSerialNo}"
+        val courseKey =
+            "${week.term}/${week.serialNumber}/${course.courseCode}/${course.courseSerialNo}"
         val occurrence = occurrenceCounts.getOrElse(courseKey) { 0 }
         occurrenceCounts[courseKey] = occurrence + 1
         events +=

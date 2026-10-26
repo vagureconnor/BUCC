@@ -24,7 +24,8 @@ class LibBookBookingStatusTest {
 
   @Test
   fun `active booking with id can be cancelled`() {
-    val booking = LibBookBookingDto(id = "b1", status = "2", statusName = "已预约", cancellationAllowed = true)
+    val booking =
+        LibBookBookingDto(id = "b1", status = "2", statusName = "已预约", cancellationAllowed = true)
 
     assertTrue(booking.canCancelBooking())
     assertEquals(null, booking.cancelBlockedMessage())
@@ -39,7 +40,8 @@ class LibBookBookingStatusTest {
 
   @Test
   fun `booking without id cannot be cancelled`() {
-    val booking = LibBookBookingDto(id = "", status = "2", statusName = "已预约", cancellationAllowed = true)
+    val booking =
+        LibBookBookingDto(id = "", status = "2", statusName = "已预约", cancellationAllowed = true)
 
     assertFalse(booking.canCancelBooking())
     assertEquals("预约记录不存在或已失效，请刷新后重试", booking.cancelBlockedMessage())

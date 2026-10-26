@@ -69,7 +69,12 @@ fun CalendarImportDialog(
       },
       confirmButton = {
         TextButton(
-            enabled = !loading && !importing && preview != null && preview!!.skipped == 0 && result == null,
+            enabled =
+                !loading &&
+                    !importing &&
+                    preview != null &&
+                    preview!!.skipped == 0 &&
+                    result == null,
             onClick = {
               importing = true
               error = null

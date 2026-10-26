@@ -145,7 +145,11 @@ internal class LocalLibBookApiBackend : LibBookApiBackend {
         }
         val response = client.reserve(request.copy(seatId = seatId))
         val message =
-            response.string("message").ifBlank { response.string("msg").ifBlank { if (response.isBusinessSuccess()) "预约成功" else "预约结果无效，请刷新预约记录确认" } }
+            response.string("message").ifBlank {
+              response.string("msg").ifBlank {
+                if (response.isBusinessSuccess()) "预约成功" else "预约结果无效，请刷新预约记录确认"
+              }
+            }
         LibBookReserveResponse(
             success = response.isBusinessSuccess(),
             message = message,
@@ -184,7 +188,11 @@ internal class LocalLibBookApiBackend : LibBookApiBackend {
         }
         val response = client.cancelBooking(bookingId)
         val message =
-            response.string("message").ifBlank { response.string("msg").ifBlank { if (response.isBusinessSuccess()) "取消成功" else "取消结果无效，请刷新预约记录确认" } }
+            response.string("message").ifBlank {
+              response.string("msg").ifBlank {
+                if (response.isBusinessSuccess()) "取消成功" else "取消结果无效，请刷新预约记录确认"
+              }
+            }
         if (!response.isBusinessSuccess()) {
           val errorCode = response.messageToLibBookErrorCode()
           throw LocalLibBookApiException(message, errorCode, errorCode.toLibBookHttpStatus())

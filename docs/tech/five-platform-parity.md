@@ -45,9 +45,9 @@
 | 平台 | 代码证据与已知平台差异 | 本次运行证据 |
 | --- | --- | --- |
 | iOS | Compose 共享界面通过 iOS 实际实现接入系统能力。日历导入由原生 EventKit bridge 提供。新作业检查通过 `BGAppRefreshTask`，任务最早时间设为当前时间后 1 小时；实际执行时间由 iOS 决定，不能承诺每小时触发。提醒处理器由 Compose 作业 ViewModel 安装，系统调度和通知权限仍可能使提醒延迟或不显示。 | 仅检查源码、`Info.plist` 和现有测试文件；本次未在设备运行或触发 BGTask。 |
-| Android | Compose 共用业务界面，系统提醒由 Android 实现。作业提醒轮询间隔为 0，`installHomeworkBackgroundTaskHandler` 是空实现；ViewModel 现在提供 `onAppForegrounded()`，由应用前台恢复时检查新作业，通知仍受 Android 通知权限控制。没有 Android 后台作业轮询保证。课程/每日待办 AlarmManager 提醒另受精确闹钟权限和系统调度限制。 | 本次没有 Android SDK，Android 编译和设备运行未执行；这不能作为运行通过。 |
-| HarmonyOS | Compose 业务界面通过 `HarmonyHost` 接入 ArkTS Host。作业轮询间隔为 0；EntryAbility 在应用回到前台且控制器就绪后调用 `refreshHomeworkOnForeground`，没有后台轮询保证。新作业通知通过系统通知服务请求，权限/系统策略可能拒绝；异常在通知调用处被吞掉。日历导入当前声明不可用。 | 仅检查 Kotlin/ArkTS 源码；本次未运行设备、通知权限或前台恢复流程。 |
-| macOS | JVM 桌面端共享页面；通知轮询间隔为 30 分钟，仅在客户端进程和对应 ViewModel 存活时检查。通知依赖系统托盘可用；无托盘或 headless 环境会跳过通知。系统日历导入由 macOS 原生 bridge 提供。 | 仅检查源码；未启动 macOS GUI、托盘、日历权限或原生 bridge。 |
+| Android | Compose 共用业务界面，系统提醒由 Android 实现。作业提醒轮询间隔为 0，`installHomeworkBackgroundTaskHandler` 是空实现；ViewModel 现在提供 `onAppForegrounded()`，由应用前台恢复时检查新作业，通知仍受 Android 通知权限控制。没有 Android 后台作业轮询保证。课程/每日待办 AlarmManager 提醒另受精确闹钟权限和系统调度限制。 | 已使用本机 Android SDK 完成 Debug 编译；最终 Release、签名和设备运行另行验证，不能据此声称运行通过。 |
+| HarmonyOS | Compose 业务界面通过 `HarmonyHost` 接入 ArkTS Host。作业轮询间隔为 0；EntryAbility 在应用回到前台且控制器就绪后调用 `refreshHomeworkOnForeground`，没有后台轮询保证。新作业通知通过系统通知服务请求，权限/系统策略可能拒绝；异常在通知调用处被吞掉。日历导入当前声明不可用。 | 本机已完成 Kotlin Release 共享库及 unsigned HAP 构建；最终提交仍需重建、签名。未运行设备、通知权限或前台恢复流程。 |
+| macOS | JVM 桌面端共享页面；通知轮询间隔为 30 分钟，仅在客户端进程和对应 ViewModel 存活时检查。通知依赖系统托盘可用；无托盘或 headless 环境会跳过通知。系统日历导入由 macOS 原生 bridge 提供。 | 原生日历 bridge 已编译并完成入口测试；未执行真实 EventKit 写入、GUI 或托盘验证。 |
 | Windows | JVM 桌面端共享页面；作业轮询间隔为 30 分钟，仅在客户端进程和对应 ViewModel 存活时检查。系统通知仍受 Windows 通知设置影响；离开应用后没有作业后台轮询。日历导入不可用。 | 仅检查源码；未启动 Windows GUI 或验证通知设置/运行时桥接。 |
 
 ### 作业提醒行为核对
@@ -72,7 +72,7 @@
 - 五端平台源码：`composeApp/src/{iosMain,androidMain,ohosMain,jvmMain}`、`iosApp/`、`harmonyApp/`。
 - JVM UI 测试和共享层 backend 测试可从 `composeApp/src/jvmTest/`、`composeApp/src/commonTest/`、`shared/src/commonTest/` 定位；它们只对实际运行过的目标和环境构成证据。
 - 图书馆只读数据检查（主 agent 提供，2026-10-26）：检查了 30 个分区。分区 `area_id=16`（一层东报刊阅览室）有 195 个座位，其中 194 个带有效地图坐标；其余 29 个分区坐标完整。旧逻辑会因这 1 个缺少几何的座位而让整图不可用。预约记录 10 笔均为已结束状态（上游状态 4/8），没有 active 预约；账号没有有效入馆记录，因此实时取消受上游门禁限制。没有尝试预约或取消，这些只读检查不证明写接口成功。
-- 当前文档任务没有执行 Gradle、iOS/Android/Harmony/macOS/Windows 安装运行、系统通知/日历写入或真实业务提交流程。编译成功（若后续由主 agent 执行）也只证明构建目标，不等于上述平台运行验收通过。
+- 已执行共享/JVM UI 测试及部分本机构建；尚未执行五端安装运行、真实系统通知/日历写入或真实预约取消。最终交付报告按实际源码 SHA 和证据逐项记录，编译通过不等于运行验收通过。
 
 ## 本机验证与发布 gate
 

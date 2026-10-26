@@ -131,8 +131,10 @@ class CalendarExportTest {
 
   @Test
   fun reschedulingKeepsOccurrenceIdentityAndDeletingCourseRemovesItFromSnapshot() {
-    val before = calendarCourseEvents(listOf(week() to schedule(course("course", 1, "08:00", "09:00"))))
-    val after = calendarCourseEvents(listOf(week() to schedule(course("course", 3, "10:00", "11:00"))))
+    val before =
+        calendarCourseEvents(listOf(week() to schedule(course("course", 1, "08:00", "09:00"))))
+    val after =
+        calendarCourseEvents(listOf(week() to schedule(course("course", 3, "10:00", "11:00"))))
     assertEquals(before.events.single().id, after.events.single().id)
     assertEquals(emptyList(), calendarCourseEvents(listOf(week() to schedule())).events)
   }

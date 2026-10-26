@@ -255,7 +255,8 @@ class LibBookViewModel(
     val slot = current.selectedSlot ?: return setActionMessage("请先选择预约时段")
     val day = current.selectedDay.ifBlank { currentDateProvider() }
     val session = sessionVersion
-    _uiState.value = current.copy(isSubmitting = true, actionMessage = null, reservationSucceeded = false)
+    _uiState.value =
+        current.copy(isSubmitting = true, actionMessage = null, reservationSucceeded = false)
     viewModelScope.launch {
       val fresh = libBookApi.getSeatSnapshot(areaId, day, slot.start, slot.end)
       if (session != sessionVersion) return@launch

@@ -639,53 +639,59 @@ class LocalLibBookApiBackendTest {
     var cancelCalls = 0
     var librariesCalls = 0
     var mutationResponse = "{}"
-        val engine = MockEngine { request ->
-          when (request.url.encodedPath) {
-            "/login" ->
-                respond(
-                    content = ByteReadChannel.Empty,
-                    status = HttpStatusCode.Found,
-                    headers =
-                        headersOf(
-                            HttpHeaders.Location,
-                            "https://booking.lib.buaa.edu.cn/v4/login/cas?cas=cas-ended",
-                        ),
-                )
-            "/v4/login/user" -> {
-              loginUserCalls++
-              respondJson(
-                  """
-                  {
-                    "code":0,
-                    "data":{"member":{"token":"jwt-ended","name":"测试用户"}}
-                  }
-                  """
-                      .trimIndent()
-              )
-            }
-            "/v4/space/cancel" -> {
-              cancelCalls++
-              respondJson(mutationResponse)
-            }
-            "/v4/space/pcTopFor" -> {
-              librariesCalls++
-              assertEquals("bearerjwt-ended", request.headers[HttpHeaders.Authorization])
-              respondJson(
-                  """
-                  {
-                    "code":1,
-                    "data":{"list":[{"id":"9","name":"学院路校区图书馆"}]}
-                  }
-                  """
-                      .trimIndent()
-              )
-            }
-            else -> error("Unexpected request: ${request.url}")
-          }
+    val engine = MockEngine { request ->
+      when (request.url.encodedPath) {
+        "/login" ->
+            respond(
+                content = ByteReadChannel.Empty,
+                status = HttpStatusCode.Found,
+                headers =
+                    headersOf(
+                        HttpHeaders.Location,
+                        "https://booking.lib.buaa.edu.cn/v4/login/cas?cas=cas-ended",
+                    ),
+            )
+        "/v4/login/user" -> {
+          loginUserCalls++
+          respondJson(
+              """
+              {
+                "code":0,
+                "data":{"member":{"token":"jwt-ended","name":"测试用户"}}
+              }
+              """
+                  .trimIndent()
+          )
         }
+        "/v4/space/cancel" -> {
+          cancelCalls++
+          respondJson(mutationResponse)
+        }
+        "/v4/space/pcTopFor" -> {
+          librariesCalls++
+          assertEquals("bearerjwt-ended", request.headers[HttpHeaders.Authorization])
+          respondJson(
+              """
+              {
+                "code":1,
+                "data":{"list":[{"id":"9","name":"学院路校区图书馆"}]}
+              }
+              """
+                  .trimIndent()
+          )
+        }
+        else -> error("Unexpected request: ${request.url}")
+      }
+    }
     installMockClient(engine)
     val backend = LocalLibBookApiBackend()
-    for (response in listOf("{}", """{"message":"操作成功"}""", """{"code":7,"message":"操作成功"}""", """{"code":0,"message":"预约未成功"}""")) {
+    for (response in
+        listOf(
+            "{}",
+            """{"message":"操作成功"}""",
+            """{"code":7,"message":"操作成功"}""",
+            """{"code":0,"message":"预约未成功"}""",
+        )) {
       mutationResponse = response
       assertTrue(backend.cancelBooking("test-record").isFailure, response)
     }

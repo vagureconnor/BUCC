@@ -85,11 +85,11 @@ function Read-NativeInfo([string]$Executable, [string[]]$Arguments) {
     return $text
 }
 $javaInfo = Read-NativeInfo $JavaExe @('-XshowSettings:properties', '-version')
-if ($LASTEXITCODE -ne 0 -or $javaInfo -notmatch 'os\.arch\s*=\s*amd64' -or $javaInfo -notmatch 'version "21([.]|")') { throw 'The configured runtime must be a working x64 JDK 21.' }
+if ($javaInfo -notmatch 'os\.arch\s*=\s*amd64' -or $javaInfo -notmatch 'version "21([.]|")') { throw 'The configured runtime must be a working x64 JDK 21.' }
 $pythonInfo = & $PythonExe -c 'import platform,sys,sysconfig; print(f"{sys.version_info.major}.{sys.version_info.minor}|{sysconfig.get_platform()}|{platform.machine()}")'
 if ($LASTEXITCODE -ne 0 -or $pythonInfo.Trim() -ne '3.14|win-amd64|AMD64') { throw 'The configured Python must be Python 3.14 x64.' }
 $goInfo = Read-NativeInfo $GoExe @('version')
-if ($LASTEXITCODE -ne 0 -or $goInfo -notmatch 'windows/amd64') { throw 'The configured Go compiler must target Windows x64.' }
+if ($goInfo -notmatch 'windows/amd64') { throw 'The configured Go compiler must target Windows x64.' }
 if ($goInfo -notmatch 'go(?<major>[0-9]+)\.(?<minor>[0-9]+)\.(?<patch>[0-9]+)') { throw 'Could not read the Go compiler version.' }
 $goVersion = [Version]("$($Matches.major).$($Matches.minor).$($Matches.patch)")
 if ($goVersion -lt [Version]'1.25.6') { throw 'Go 1.25.6 or newer is required.' }

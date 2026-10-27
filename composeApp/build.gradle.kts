@@ -113,9 +113,11 @@ val tdPackagingArch =
             }
         )
 val tdPackagingResources = layout.buildDirectory.dir("td-packaging/resources")
+val desktopPackagingJavaHome = providers.environmentVariable("BUCC_JAVA_HOME")
 
 compose.desktop {
   application {
+    if (desktopPackagingJavaHome.isPresent) javaHome = desktopPackagingJavaHome.get()
     mainClass = "app.bucc.MainKt"
     jvmArgs(
         "--add-opens=java.desktop/sun.awt=ALL-UNNAMED",
@@ -170,6 +172,18 @@ compose.desktop {
     }
   }
 }
+
+// The runtime image is shared between packaging tasks. Its cache key must include
+// target architecture and the explicitly selected JDK, just like native helpers.
+tasks
+    .matching { it.name == "createRuntimeImage" }
+    .configureEach {
+      inputs.property("bucc.packaging.arch", tdPackagingArch)
+      inputs.property(
+          "bucc.packaging.javaHome",
+          desktopPackagingJavaHome.orElse("default-toolchain"),
+      )
+    }
 
 val packageOutputPath = providers.gradleProperty("bucc.packageOutput").getOrElse("compose/binaries")
 val trimDesktopIcons by

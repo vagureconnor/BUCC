@@ -6,10 +6,31 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from release_gate import GateError, publish_release, validate
+from release_gate import GateError, harmony_fingerprint, publish_release, validate
 
 
 class ReleaseGateTests(unittest.TestCase):
+    def test_harmony_gate_fingerprints_the_verified_certificate_leaf(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            tool = Path(temporary) / "hap-sign-tool.jar"
+            tool.write_bytes(b"fixture")
+            hap = Path(temporary) / "signed.hap"
+            hap.write_bytes(b"fixture")
+
+            def fake_verify(command, **kwargs):
+                Path(command[command.index("-outCertChain") + 1]).write_bytes(b"root-first cert chain")
+                Path(command[command.index("-outProfile") + 1]).write_bytes(b"verified profile")
+                return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+            with patch.dict("os.environ", {"HAP_SIGN_TOOL_JAR": str(tool)}), patch(
+                "release_gate.shutil.which", return_value="java"
+            ), patch("release_gate.subprocess.run", side_effect=fake_verify), patch(
+                "release_gate.leaf_sha256", return_value="7d8fabaaff15ea84e5343d94b352ee97452e4314bfb90bbdcc8569d57659f2f7"
+            ) as leaf:
+                result = harmony_fingerprint(hap)
+            self.assertEqual("7d8fabaaff15ea84e5343d94b352ee97452e4314bfb90bbdcc8569d57659f2f7", result)
+            leaf.assert_called_once()
+
     def fixture(self, directory: Path):
         source_sha, version = "a" * 40, "2.0.1"
         assets = []

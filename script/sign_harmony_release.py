@@ -20,6 +20,14 @@ import zipfile
 from pathlib import Path
 from typing import Sequence
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".github" / "scripts"))
+from public_certificate import (  # noqa: E402
+    EXPECTED_HARMONY_LEAF_SHA256,
+    CertificateError,
+    leaf_sha256,
+    validate_leaf_sha256,
+)
+
 KEYCHAIN_SERVICE = "BUCC Harmony DevEco P12"
 EXPECTED_KEYSTORE = Path(
     "/Users/connor/Library/Application Support/BUCC/Signing/Harmony/BUCC-Harmony-DevEco.p12"
@@ -35,7 +43,7 @@ DEFAULT_HAP_SIGN_TOOL = Path(
         "DEVECO_SDK_HOME", "/Applications/DevEco-Studio.app/Contents/sdk"
     )
 ) / "default/openharmony/toolchains/lib/hap-sign-tool.jar"
-EXPECTED_SIGNING_FINGERPRINT = "df21a3c09f7954579305f85c64f80cad86f79853ee3a887c1dec95d218df3a37"
+EXPECTED_SIGNING_FINGERPRINT = EXPECTED_HARMONY_LEAF_SHA256
 BUNDLE_CONFIG = Path(__file__).resolve().parents[1] / "harmonyApp/AppScope/app.json5"
 SIGN_ALIAS = "bucc_release"
 SIGN_ALGORITHM = "SHA384withECDSA"
@@ -367,30 +375,17 @@ def build_sign_command(
 
 
 def certificate_fingerprint(certificate: Path) -> str:
-    openssl = shutil.which("openssl")
-    if not openssl:
-        raise SigningError("OpenSSL is unavailable for certificate inspection")
-    command = [openssl, "x509", "-in", str(certificate), "-noout", "-fingerprint", "-sha256"]
     try:
-        result = subprocess.run(command, check=False, capture_output=True, text=True)
-        if result.returncode != 0:
-            command = [openssl, "x509", "-inform", "DER", "-in", str(certificate), "-noout", "-fingerprint", "-sha256"]
-            result = subprocess.run(command, check=False, capture_output=True, text=True)
-    except OSError:
-        raise SigningError("OpenSSL certificate inspection failed") from None
-    if result.returncode != 0:
-        raise SigningError("verified HAP certificate could not be parsed")
-    match = re.search(r"SHA256 Fingerprint=([0-9a-fA-F:]+)", result.stdout, re.IGNORECASE)
-    if not match:
-        raise SigningError("verified HAP certificate fingerprint was not reported")
-    return match.group(1).replace(":", "").lower()
+        return leaf_sha256(certificate)
+    except CertificateError as error:
+        raise SigningError(f"verified HAP certificate chain could not be inspected: {error}") from None
 
 
 def validate_release_certificate_fingerprint(certificate: Path) -> str:
-    fingerprint = certificate_fingerprint(certificate)
-    if fingerprint != EXPECTED_SIGNING_FINGERPRINT:
-        raise SigningError("verified HAP certificate does not match the approved release certificate")
-    return fingerprint
+    try:
+        return validate_leaf_sha256(certificate, EXPECTED_SIGNING_FINGERPRINT)
+    except CertificateError as error:
+        raise SigningError(str(error)) from None
 
 
 def read_project_bundle_name(config_path: Path = BUNDLE_CONFIG) -> str:
@@ -519,6 +514,7 @@ def sign(
     java_command = java or shutil.which("java")
     if not java_command:
         raise SigningError("Java is unavailable")
+    validate_release_certificate_fingerprint(APP_CERTIFICATE)
     password = read_keychain_password()
     input_hap: Path = validated["hap"]
     metadata = validated["metadata"]

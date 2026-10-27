@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 
 from package_validation import PackageError, validate_ios_ipa, validate_macos_dmg, validate_windows_exe
+from public_certificate import CertificateError, leaf_sha256
 
 REQUIRED = {"android", "ios", "macos-x86_64", "macos-arm64", "windows", "harmony"}
 
@@ -55,8 +56,7 @@ def android_fingerprint(android_apk: Path) -> str:
 def harmony_fingerprint(harmony_hap: Path) -> str:
     tool = Path(os.environ.get("HAP_SIGN_TOOL_JAR", ""))
     java = shutil.which("java")
-    openssl = shutil.which("openssl")
-    if not tool.is_file() or not java or not openssl:
+    if not tool.is_file() or not java:
         raise GateError("需要官方 hap-sign-tool.jar、Java 和 OpenSSL 才能核验 Harmony 签名")
     with tempfile.TemporaryDirectory(prefix="bucc-release-signature-") as temporary:
         cert = Path(temporary) / "certificate.cer"
@@ -68,16 +68,10 @@ def harmony_fingerprint(harmony_hap: Path) -> str:
         )
         if verify.returncode or not cert.is_file():
             raise GateError("hap-sign-tool 无法验证 Harmony HAP")
-        certificate = subprocess.run(
-            [openssl, "x509", "-in", str(cert), "-noout", "-fingerprint", "-sha256"],
-            check=False, capture_output=True, text=True
-        )
-        if certificate.returncode:
-            raise GateError("无法读取 Harmony HAP 签名证书指纹")
-        match = re.search(r"SHA256 Fingerprint=([0-9a-fA-F:]+)", certificate.stdout)
-        if not match:
-            raise GateError("OpenSSL 未输出 Harmony SHA-256 证书指纹")
-        return normalize_fingerprint(match.group(1))
+        try:
+            return leaf_sha256(cert)
+        except CertificateError as error:
+            raise GateError(f"Harmony HAP 签名证书链无效：{error}") from None
 
 
 def signature_fingerprints(android_apk: Path, harmony_hap: Path) -> tuple[str, str]:

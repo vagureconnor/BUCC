@@ -9,6 +9,7 @@ import unittest
 import zipfile
 from pathlib import Path
 from unittest.mock import patch
+from public_certificate import CertificateError
 
 from script.sign_harmony_release import (
     APP_CERTIFICATE,
@@ -29,6 +30,7 @@ from script.sign_harmony_release import (
     validate_verified_profile,
     validate_input,
     verify_payload_unchanged,
+    sign,
 )
 
 
@@ -173,11 +175,36 @@ class SigningInputTests(unittest.TestCase):
 
     def test_certificate_fingerprint_must_match_approved_release_identity(self):
         self.assertEqual(len(EXPECTED_SIGNING_FINGERPRINT), 64)
-        with patch("script.sign_harmony_release.certificate_fingerprint", return_value=EXPECTED_SIGNING_FINGERPRINT):
+        self.assertEqual("7d8fabaaff15ea84e5343d94b352ee97452e4314bfb90bbdcc8569d57659f2f7", EXPECTED_SIGNING_FINGERPRINT)
+        with patch("script.sign_harmony_release.validate_leaf_sha256", return_value=EXPECTED_SIGNING_FINGERPRINT):
             self.assertEqual(EXPECTED_SIGNING_FINGERPRINT, validate_release_certificate_fingerprint(self.root / "cert.cer"))
-        with patch("script.sign_harmony_release.certificate_fingerprint", return_value="0" * 64):
+        with patch("script.sign_harmony_release.validate_leaf_sha256", side_effect=CertificateError("certificate chain leaf does not match the approved release certificate")):
             with self.assertRaisesRegex(SigningError, "approved release certificate"):
                 validate_release_certificate_fingerprint(self.root / "wrong.cer")
+
+    def test_release_certificate_chain_is_checked_before_reading_signing_password(self):
+        tool = self.root / "hap-sign-tool.jar"
+        certificate = self.root / "Release.cer"
+        profile = self.root / "Release.p7b"
+        tool.write_bytes(b"tool fixture")
+        certificate.write_bytes(b"chain fixture")
+        profile.write_bytes(b"profile fixture")
+        validated = {
+            "hap": self.hap,
+            "metadata": json.loads(self.metadata.read_text()),
+            "output": self.output,
+            "manifest_output": self.root / "manifest.json",
+            "keystore": self.expected_keystore,
+        }
+        with patch("script.sign_harmony_release.validate_input", return_value=validated), patch(
+            "script.sign_harmony_release.APP_CERTIFICATE", certificate
+        ), patch("script.sign_harmony_release.APP_PROFILE", profile), patch(
+            "script.sign_harmony_release.validate_release_certificate_fingerprint",
+            side_effect=SigningError("certificate chain leaf does not match the approved release certificate"),
+        ), patch("script.sign_harmony_release.read_keychain_password") as read_password:
+            with self.assertRaisesRegex(SigningError, "certificate chain leaf"):
+                sign(self.hap, self.metadata, SOURCE_SHA, self.output, hap_sign_tool=tool, java="java")
+        read_password.assert_not_called()
 
 
 @contextlib.contextmanager

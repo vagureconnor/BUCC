@@ -50,8 +50,14 @@ fun SigninScreen(viewModel: SigninViewModel) {
         uiState.isLoading ->
             Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
         uiState.error != null ->
-            Box(Modifier.fillMaxSize(), Alignment.Center) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
               Text(text = uiState.error!!, color = MaterialTheme.colorScheme.error)
+              Spacer(Modifier.height(12.dp))
+              Button(onClick = { viewModel.loadTodayClasses() }) { Text("重试") }
             }
         uiState.classes.isEmpty() ->
             Box(Modifier.fillMaxSize(), Alignment.Center) { Text("今日无课程安排") }
@@ -65,6 +71,7 @@ fun SigninScreen(viewModel: SigninViewModel) {
                   clazz,
                   { viewModel.performSignin(clazz.courseId) },
                   uiState.signingInCourseId == clazz.courseId,
+                  uiState.signingInCourseId != null,
               )
             }
           }
@@ -76,7 +83,12 @@ fun SigninScreen(viewModel: SigninViewModel) {
 
 /** 单个签到课程卡片。 */
 @Composable
-fun SigninClassCard(clazz: SigninClassDto, onSigninClick: () -> Unit, isSigningIn: Boolean) {
+fun SigninClassCard(
+    clazz: SigninClassDto,
+    onSigninClick: () -> Unit,
+    isSigningIn: Boolean,
+    isAnySigninInProgress: Boolean = isSigningIn,
+) {
   val isSigned = clazz.signStatus == 1
   Card(
       modifier = Modifier.fillMaxWidth(),
@@ -123,7 +135,7 @@ fun SigninClassCard(clazz: SigninClassDto, onSigninClick: () -> Unit, isSigningI
               MaterialTheme.colorScheme.primary,
           )
       else
-          Button(onClick = onSigninClick, enabled = !isSigningIn) {
+          Button(onClick = onSigninClick, enabled = !isAnySigninInProgress) {
             if (isSigningIn)
                 CircularProgressIndicator(
                     modifier = Modifier.size(16.dp),

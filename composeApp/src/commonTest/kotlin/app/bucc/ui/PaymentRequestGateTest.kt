@@ -15,7 +15,7 @@ class PaymentRequestGateTest {
   @Test
   fun `official provider subpages and POSTs remain in the existing payment context`() {
     val gate = PaymentRequestGate(false)
-    assertTrue(gate.allows("https://qr.alipay.com/synthetic", "GET", false))
+    assertEquals(2, gate.decision("https://qr.alipay.com/synthetic", "GET", false))
     assertTrue(gate.allows("https://mapi.alipay.com/new-channel/entry", "POST", false))
     assertTrue(gate.allows("https://wx.tenpay.com/pay/continue", "GET", false))
     assertFalse(gate.allows("https://mapi.alipay.com.evil.test/new-channel/entry", "POST", false))

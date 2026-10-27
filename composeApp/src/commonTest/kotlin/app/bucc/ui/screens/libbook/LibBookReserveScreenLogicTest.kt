@@ -3,10 +3,29 @@ package app.bucc.ui.screens.libbook
 import app.bucc.model.dto.LibBookSeatDto
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class LibBookReserveScreenLogicTest {
+  @Test
+  fun `a seat without geometry does not disable other seats on the map`() {
+    val valid =
+        LibBookSeatDto(
+            "valid",
+            status = "1",
+            pointX = 10.0,
+            pointY = 20.0,
+            width = 2.0,
+            height = 3.0,
+        )
+    val missing = LibBookSeatDto("missing", status = "1")
+    assertTrue(libBookSeatMapHasCoordinates(listOf(valid, missing)))
+    assertFalse(libBookSeatMapHasCoordinates(listOf(missing)))
+    assertFalse(libBookSeatMapHasCoordinates(emptyList()))
+  }
+
   @Test
   fun `visibleLibBookSeats keeps only reservable seats`() {
     val seats =

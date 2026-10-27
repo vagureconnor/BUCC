@@ -28,27 +28,72 @@ android {
         }
       }
 
-  signingConfigs {
-    create("release") {
-      val keyPath = localProperties.getProperty("SIGNING_KEY") ?: System.getenv("SIGNING_KEY")
-      storeFile = keyPath?.let { file(it) }
-      storePassword =
-          localProperties.getProperty("SIGNING_STORE_PASSWORD")
-              ?: System.getenv("SIGNING_STORE_PASSWORD")
-      keyAlias =
-          localProperties.getProperty("SIGNING_KEY_ALIAS") ?: System.getenv("SIGNING_KEY_ALIAS")
-      keyPassword =
-          localProperties.getProperty("SIGNING_KEY_PASSWORD")
-              ?: System.getenv("SIGNING_KEY_PASSWORD")
+  val releaseKeyPath = localProperties.getProperty("SIGNING_KEY") ?: System.getenv("SIGNING_KEY")
+  val releaseStorePassword =
+      localProperties.getProperty("SIGNING_STORE_PASSWORD")
+          ?: System.getenv("SIGNING_STORE_PASSWORD")
+  val releaseKeyAlias =
+      localProperties.getProperty("SIGNING_KEY_ALIAS") ?: System.getenv("SIGNING_KEY_ALIAS")
+  val releaseKeyPassword =
+      localProperties.getProperty("SIGNING_KEY_PASSWORD") ?: System.getenv("SIGNING_KEY_PASSWORD")
+  val hasReleaseSigning =
+      listOf(releaseKeyPath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword).all {
+        !it.isNullOrBlank()
+      }
+  val hasAnyReleaseSigning =
+      listOf(releaseKeyPath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword).any {
+        !it.isNullOrBlank()
+      }
+  val unsignedRelease = providers.gradleProperty("bucc.android.unsignedRelease").orNull == "true"
+
+  val validateReleaseSigning by
+      tasks.registering {
+        doLast {
+          if (unsignedRelease && hasAnyReleaseSigning) {
+            throw GradleException(
+                "Unsigned Android Release builds must not receive release signing values."
+            )
+          }
+          if (!unsignedRelease && !hasReleaseSigning) {
+            throw GradleException(
+                "Release signing is required. Supply SIGNING_KEY, SIGNING_STORE_PASSWORD, " +
+                    "SIGNING_KEY_ALIAS and SIGNING_KEY_PASSWORD, or explicitly opt into " +
+                    "-Pbucc.android.unsignedRelease=true for CI compilation."
+            )
+          }
+        }
+      }
+
+  if (hasReleaseSigning && !unsignedRelease) {
+    signingConfigs {
+      create("release") {
+        storeFile = file(releaseKeyPath!!)
+        storePassword = releaseStorePassword
+        keyAlias = releaseKeyAlias
+        keyPassword = releaseKeyPassword
+      }
     }
   }
 
   buildTypes {
     getByName("release") {
       isMinifyEnabled = false
-      signingConfig = signingConfigs.getByName("release")
+      signingConfig =
+          if (hasReleaseSigning && !unsignedRelease) signingConfigs.getByName("release") else null
     }
   }
+
+  tasks
+      .matching {
+        it.name in
+            setOf(
+                "packageRelease",
+                "packageReleaseBundle",
+                "bundleRelease",
+                "validateSigningRelease",
+            )
+      }
+      .configureEach { dependsOn(validateReleaseSigning) }
 
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_21

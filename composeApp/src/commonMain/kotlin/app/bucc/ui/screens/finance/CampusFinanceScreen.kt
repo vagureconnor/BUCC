@@ -236,7 +236,9 @@ fun CampusFinanceScreen(
   }
 
   LaunchedEffect(financeApi) { refreshCampusCard() }
-  LaunchedEffect(financeApi, selectedTab, internetVerifiedThisVisit, internetBalances) {
+  // Verification refreshes balances directly. Re-entering after payment recreates
+  // financeApi; mutable load state must not cancel the refresh it just started.
+  LaunchedEffect(financeApi) {
     if (selectedTab == 1 && internetVerifiedThisVisit && internetBalances == null) {
       refreshInternetBalances()
     }

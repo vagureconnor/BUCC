@@ -46,7 +46,5 @@
 	<string>将你选择的课表导入日历，并统一设置课程提醒。</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>导入课表并识别 BUCC 已创建的课程，重复导入时更新日程与提醒。</string>
-	<key>NSCameraUsageDescription</key>
-	<string>扫描图书馆座位预约二维码并打开对应预约信息。</string>
 </dict>
 </plist>

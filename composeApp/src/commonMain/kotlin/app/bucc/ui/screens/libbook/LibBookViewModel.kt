@@ -8,7 +8,6 @@ import app.bucc.model.dto.LibBookAreaDto
 import app.bucc.model.dto.LibBookBookingsResponse
 import app.bucc.model.dto.LibBookLibraryDto
 import app.bucc.model.dto.LibBookMapImagesDto
-import app.bucc.model.dto.LibBookQrTarget
 import app.bucc.model.dto.LibBookReserveRequest
 import app.bucc.model.dto.LibBookSeatDto
 import app.bucc.model.dto.LibBookTimeSlotDto
@@ -47,6 +46,7 @@ data class LibBookUiState(
     val seatsError: String? = null,
     val bookingsError: String? = null,
     val actionMessage: String? = null,
+    val reservationSucceeded: Boolean = false,
     val cancelingBookingId: String? = null,
 )
 
@@ -65,8 +65,6 @@ class LibBookViewModel(
   private var detailVersion = 0
   private var areasVersion = 0
   private var librariesVersion = 0
-  private var qrTarget: LibBookQrTarget? = null
-  private var pendingQrSeat: String? = null
   private var initialLoadedOnce = false
   private var bookingsLoadedOnce = false
   private val _uiState = MutableStateFlow(LibBookUiState(selectedDay = currentDateProvider()))
@@ -84,8 +82,6 @@ class LibBookViewModel(
     areasVersion++
     detailVersion++
     seatsVersion++
-    qrTarget = null
-    pendingQrSeat = null
     initialLoadedOnce = false
     bookingsLoadedOnce = false
     _uiState.value = LibBookUiState(selectedDay = _uiState.value.selectedDay)
@@ -143,8 +139,6 @@ class LibBookViewModel(
 
   fun selectLibrary(libraryId: String) {
     if (_uiState.value.isSubmitting) return
-    qrTarget = null
-    pendingQrSeat = null
     areasVersion++
     detailVersion++
     seatsVersion++
@@ -167,8 +161,6 @@ class LibBookViewModel(
 
   fun selectStorey(storeyId: String?) {
     if (_uiState.value.isSubmitting) return
-    qrTarget = null
-    pendingQrSeat = null
     areasVersion++
     detailVersion++
     seatsVersion++
@@ -188,8 +180,6 @@ class LibBookViewModel(
 
   fun selectArea(areaId: String) {
     if (_uiState.value.isSubmitting) return
-    qrTarget = null
-    pendingQrSeat = null
     areasVersion++
     detailVersion++
     seatsVersion++
@@ -239,32 +229,8 @@ class LibBookViewModel(
 
   fun startNormalReservation() {
     if (_uiState.value.isSubmitting) return
-    qrTarget = null
-    pendingQrSeat = null
     initialLoadedOnce = false
     loadLibraries()
-  }
-
-  fun openQrTarget(target: LibBookQrTarget) {
-    if (_uiState.value.isSubmitting) return
-    librariesVersion++
-    areasVersion++
-    detailVersion++
-    seatsVersion++
-    qrTarget = target
-    pendingQrSeat = target.seatId
-    initialLoadedOnce = true
-    _uiState.value =
-        _uiState.value.copy(
-            selectedAreaId = target.areaId,
-            selectedDay = target.day ?: currentDateProvider(),
-            selectedSlotId = null,
-            selectedSeatId = null,
-            seats = emptyList(),
-            areaDetail = null,
-            actionMessage = null,
-        )
-    loadAreaDetailAndSeats(target.areaId)
   }
 
   fun selectSeat(seatId: String) {
@@ -289,7 +255,8 @@ class LibBookViewModel(
     val slot = current.selectedSlot ?: return setActionMessage("请先选择预约时段")
     val day = current.selectedDay.ifBlank { currentDateProvider() }
     val session = sessionVersion
-    _uiState.value = current.copy(isSubmitting = true, actionMessage = null)
+    _uiState.value =
+        current.copy(isSubmitting = true, actionMessage = null, reservationSucceeded = false)
     viewModelScope.launch {
       val fresh = libBookApi.getSeatSnapshot(areaId, day, slot.start, slot.end)
       if (session != sessionVersion) return@launch
@@ -324,11 +291,14 @@ class LibBookViewModel(
             _uiState.value =
                 _uiState.value.copy(
                     isSubmitting = false,
-                    selectedSeatId = null,
+                    selectedSeatId = if (it.success) null else _uiState.value.selectedSeatId,
                     actionMessage = it.message,
+                    reservationSucceeded = it.success,
                 )
-            loadSeats(areaId, day, slot)
-            loadBookings()
+            if (it.success) {
+              loadSeats(areaId, day, slot)
+              loadBookings()
+            }
           }
           .onFailure {
             if (session != sessionVersion) return@onFailure
@@ -367,27 +337,31 @@ class LibBookViewModel(
 
   fun cancelBooking(bookingId: String) {
     val current = _uiState.value
-    if (current.cancelingBookingId == bookingId) return
+    if (current.cancelingBookingId != null) return
     val booking = current.bookings.bookings.firstOrNull { it.id == bookingId }
     val blockedMessage =
-        booking?.cancelBlockedMessage() ?: if (bookingId.isBlank()) "预约记录不存在或已失效，请刷新后重试" else null
+        if (booking == null) "预约记录不存在或已失效，请刷新后重试" else booking.cancelBlockedMessage()
     if (blockedMessage != null) {
       setActionMessage(blockedMessage)
       return
     }
+    val session = sessionVersion
     _uiState.value = current.copy(cancelingBookingId = bookingId, actionMessage = null)
     viewModelScope.launch {
       libBookApi
           .cancelBooking(bookingId)
-          .onSuccess {
+          .onSuccess { response ->
+            if (session != sessionVersion) return@onSuccess
             _uiState.value =
                 _uiState.value.copy(
                     cancelingBookingId = null,
-                    actionMessage = it.message,
+                    actionMessage = response.message,
                 )
-            loadBookings(_uiState.value.bookings.page, _uiState.value.bookings.limit)
+            if (response.success)
+                loadBookings(_uiState.value.bookings.page, _uiState.value.bookings.limit)
           }
           .onFailure {
+            if (session != sessionVersion) return@onFailure
             _uiState.value =
                 _uiState.value.copy(
                     cancelingBookingId = null,
@@ -418,7 +392,7 @@ class LibBookViewModel(
   }
 
   fun clearActionMessage() {
-    _uiState.value = _uiState.value.copy(actionMessage = null)
+    _uiState.value = _uiState.value.copy(actionMessage = null, reservationSucceeded = false)
   }
 
   private fun loadAreas(libraryId: String, storeyId: String?, day: String) {
@@ -470,15 +444,6 @@ class LibBookViewModel(
             if (version != detailVersion || _uiState.value.selectedAreaId != areaId)
                 return@onSuccess
             val requestedDay = _uiState.value.selectedDay
-            if (qrTarget?.day != null && requestedDay !in detail.availableDates) {
-              _uiState.value =
-                  _uiState.value.copy(
-                      areaDetail = detail,
-                      isSeatsLoading = false,
-                      seatsError = "二维码指定日期当前不可预约，请返回选择其他日期",
-                  )
-              return@onSuccess
-            }
             val day =
                 requestedDay.takeIf { it in detail.availableDates }
                     ?: detail.availableDates.firstOrNull()
@@ -524,13 +489,12 @@ class LibBookViewModel(
           .onSuccess { snapshot ->
             if (!currentRequest()) return@onSuccess
             val seats = snapshot.seats
-            val requestedSeat = pendingQrSeat ?: _uiState.value.selectedSeatId
+            val requestedSeat = _uiState.value.selectedSeatId
             val selectedSeat =
                 requestedSeat?.takeIf { id ->
                   seats.any { it.id == id && it.isAvailable && it.inLabel }
                 }
             val lostSelection = requestedSeat != null && selectedSeat == null
-            pendingQrSeat = null
             _uiState.value =
                 _uiState.value.copy(
                     isSeatsLoading = false,

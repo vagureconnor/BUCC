@@ -15,8 +15,13 @@ actual fun homeworkReminderPollIntervalMillis(): Long = 0L
 private val notificationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 private var foregroundHandler: HomeworkBackgroundTaskHandler? = null
 
-actual fun installHomeworkBackgroundTaskHandler(handler: HomeworkBackgroundTaskHandler) {
+actual fun installHomeworkBackgroundTaskHandler(
+    handler: HomeworkBackgroundTaskHandler
+): HomeworkBackgroundTaskRegistration {
   foregroundHandler = handler
+  return HomeworkBackgroundTaskRegistration {
+    if (foregroundHandler === handler) foregroundHandler = null
+  }
 }
 
 actual fun notifyNewHomework(items: List<HomeworkItem>) {

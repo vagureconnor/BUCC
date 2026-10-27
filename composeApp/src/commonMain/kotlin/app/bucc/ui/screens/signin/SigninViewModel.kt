@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.bucc.api.feature.SigninApi
 import app.bucc.model.dto.SigninClassDto
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +26,9 @@ class SigninViewModel(
     private val signinApi: SigninApi = SigninApi(),
 ) : ViewModel() {
   private var loadedOnce = false
+  private var sessionGeneration = 0L
+  private var loadJob: Job? = null
+  private var signinJob: Job? = null
 
   private val _uiState = MutableStateFlow(SigninUiState())
   /** 签到状态流。 */
@@ -39,44 +43,71 @@ class SigninViewModel(
 
   /** 拉取今日所有可签到的课堂。 */
   fun loadTodayClasses() {
-    loadedOnce = true
-    viewModelScope.launch {
-      _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-      signinApi
-          .getTodayClasses()
-          .onSuccess { _uiState.value = _uiState.value.copy(isLoading = false, classes = it.data) }
-          .onFailure {
-            _uiState.value = _uiState.value.copy(isLoading = false, error = it.message ?: "加载课程失败")
-          }
-    }
+    if (loadJob?.isActive == true) return
+    val generation = sessionGeneration
+    _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+    loadJob =
+        viewModelScope.launch {
+          val result = signinApi.getTodayClasses()
+          if (generation != sessionGeneration) return@launch
+          result
+              .onSuccess {
+                loadedOnce = true
+                _uiState.value = _uiState.value.copy(isLoading = false, classes = it.data)
+              }
+              .onFailure {
+                loadedOnce = false
+                _uiState.value =
+                    _uiState.value.copy(isLoading = false, error = it.message ?: "加载课程失败")
+              }
+        }
   }
 
   /** 提交签到请求。 */
   fun performSignin(courseId: String) {
-    viewModelScope.launch {
-      _uiState.value = _uiState.value.copy(signingInCourseId = courseId, signinResult = null)
-      signinApi
-          .performSignin(courseId)
-          .onSuccess { response ->
-            _uiState.value =
-                _uiState.value.copy(
-                    signingInCourseId = null,
-                    signinResult = if (response.success) "签到成功" else "签到失败: ${response.message}",
-                )
-            if (response.success) {
-              loadedOnce = false
-              ensureTodayLoaded(forceRefresh = true)
+    if (signinJob?.isActive == true) return
+    val generation = sessionGeneration
+    _uiState.value = _uiState.value.copy(signingInCourseId = courseId, signinResult = null)
+    signinJob =
+        viewModelScope.launch {
+          try {
+            val result = signinApi.performSignin(courseId)
+            if (generation != sessionGeneration) return@launch
+            result
+                .onSuccess { response ->
+                  _uiState.value =
+                      _uiState.value.copy(
+                          signingInCourseId = null,
+                          signinResult =
+                              if (response.success) "签到成功" else "签到失败: ${response.message}",
+                      )
+                  if (response.success) {
+                    loadedOnce = false
+                    ensureTodayLoaded(forceRefresh = true)
+                  }
+                }
+                .onFailure {
+                  _uiState.value =
+                      _uiState.value.copy(
+                          signingInCourseId = null,
+                          signinResult = "签到异常: ${it.message}",
+                      )
+                }
+          } finally {
+            if (generation == sessionGeneration && _uiState.value.signingInCourseId == courseId) {
+              _uiState.value = _uiState.value.copy(signingInCourseId = null)
             }
           }
-          .onFailure {
-            _uiState.value =
-                _uiState.value.copy(signingInCourseId = null, signinResult = "签到异常: ${it.message}")
-          }
-    }
+        }
   }
 
   /** 重置内部加载标记与 UI 状态，用于连接模式切换等场景。 */
   fun resetLoadedState() {
+    sessionGeneration++
+    loadJob?.cancel()
+    signinJob?.cancel()
+    loadJob = null
+    signinJob = null
     loadedOnce = false
     _uiState.value = SigninUiState()
   }

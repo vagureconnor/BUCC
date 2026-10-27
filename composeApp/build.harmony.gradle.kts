@@ -126,8 +126,8 @@ compose.resources { packageOfResClass = "bucc.composeapp.generated.resources" }
 
 val stageHarmonyLibrary by
     tasks.registering(Copy::class) {
-      dependsOn("linkDebugSharedOhosArm64")
-      from(layout.buildDirectory.file("bin/ohosArm64/debugShared/libbucc_compose.so"))
+      dependsOn("linkReleaseSharedOhosArm64")
+      from(layout.buildDirectory.file("bin/ohosArm64/releaseShared/libbucc_compose.so"))
       into(rootProject.file("../harmonyApp/entry/libs/arm64-v8a"))
     }
 val stageHarmonyResources by

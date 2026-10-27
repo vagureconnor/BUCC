@@ -251,6 +251,36 @@ class ApiFactoryDispatchTest {
       assertTrue(direct.first !== webVpn.first)
     }
   }
+
+  @Test
+  fun `clearing local auth session retires every cached backend`() {
+    ConnectionModeStore.save(ConnectionMode.DIRECT)
+    ConnectionRuntime.resolveSelectedMode()
+    val previous = defaultBackends()
+
+    DefaultApiFactory.authService().clearStoredSession()
+
+    val replacement = defaultBackends()
+    previous.zip(replacement).forEach { (old, current) -> assertTrue(old !== current) }
+  }
+
+  private fun defaultBackends(): List<Any> =
+      listOf(
+          DefaultApiFactory.authService(),
+          DefaultApiFactory.userService(),
+          DefaultApiFactory.scheduleApi(),
+          DefaultApiFactory.signinApi(),
+          DefaultApiFactory.spocApi(),
+          DefaultApiFactory.judgeApi(),
+          DefaultApiFactory.bykcApi(),
+          DefaultApiFactory.cgyyApi(),
+          DefaultApiFactory.ygdkApi(),
+          DefaultApiFactory.classroomApi(),
+          DefaultApiFactory.evaluationService(),
+          DefaultApiFactory.gradeApi(),
+          DefaultApiFactory.libBookApi(),
+          DefaultApiFactory.ihomeApi(),
+      )
 }
 
 private class FakeApiFactory(

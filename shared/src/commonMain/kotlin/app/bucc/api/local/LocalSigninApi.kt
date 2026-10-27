@@ -1,5 +1,7 @@
 package app.bucc.api.local
 
+import app.bucc.api.ConnectionMode
+import app.bucc.api.ConnectionRuntime
 import app.bucc.api.SIGNIN_LOGIN_REDIRECT_LIMIT
 import app.bucc.api.SIGNIN_MY_CENTER_URL
 import app.bucc.api.extractSigninLoginNameFromUrl
@@ -17,6 +19,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Parameters
 import kotlin.time.Clock
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.TimeZone
@@ -67,6 +70,22 @@ internal class LocalSigninApiBackend : SigninApiBackend {
     return status == "0" || status == "200" || status == "success"
   }
 
+  private fun isSigninSessionExpired(payload: JsonObject): Boolean {
+    val message = jsonStringValue(payload, "ERRMSG").orEmpty().lowercase()
+    return listOf(
+            "登录失效",
+            "登录已过期",
+            "请重新登录",
+            "请先登录",
+            "未登录",
+            "session过期",
+            "session失效",
+            "会话过期",
+            "会话失效",
+        )
+        .any { it in message }
+  }
+
   override suspend fun getTodayClasses(): Result<SigninStatusResponse> {
     return getTodayClasses(allowRetry = true)
   }
@@ -74,12 +93,11 @@ internal class LocalSigninApiBackend : SigninApiBackend {
   private suspend fun getTodayClasses(allowRetry: Boolean): Result<SigninStatusResponse> {
     val authSession =
         LocalAuthSessionStore.get() ?: return Result.failure(localUnauthenticatedApiException())
-    val signinSession = runCatching { currentSession(authSession.studentId()) }.getOrNull()
-    if (signinSession == null) {
-      return Result.success(SigninStatusResponse(code = 200, message = "获取成功"))
-    }
-
     return try {
+      val signinSession =
+          currentSession(authSession.studentId())
+              ?: throw IllegalStateException(loginLastError ?: "iClass 登录失败，请重新登录后查询")
+      loginLastError = null
       val response =
           LocalUpstreamClientProvider.shared().get(
               localUpstreamUrl(
@@ -91,21 +109,27 @@ internal class LocalSigninApiBackend : SigninApiBackend {
             parameter("dateStr", currentSigninDate())
           }
       if (response.status != HttpStatusCode.OK) {
-        return Result.success(SigninStatusResponse(code = 200, message = "获取成功"))
+        throw IllegalStateException("获取今日签到课程失败（HTTP ${response.status.value}）")
       }
       val payload = json.parseToJsonElement(response.bodyAsText()).jsonObject
       if (payload.containsKey("STATUS") && !isStatusSuccess(payload)) {
-        if (allowRetry) {
+        val message = jsonStringValue(payload, "ERRMSG")?.takeIf { it.isNotBlank() }
+        if (allowRetry && isSigninSessionExpired(payload)) {
           invalidateSession(authSession.studentId())
-          val refreshed = runCatching { currentSession(authSession.studentId()) }.getOrNull()
-          if (refreshed != null) return getTodayClasses(allowRetry = false)
+          if (currentSession(authSession.studentId()) != null) {
+            return getTodayClasses(allowRetry = false)
+          }
         }
-        return Result.success(SigninStatusResponse(code = 200, message = "获取成功"))
+        throw IllegalStateException(message ?: "获取今日签到课程失败")
       }
-      val classes = payload["result"]?.jsonArray?.map(::mapSigninClass).orEmpty()
+      val classes =
+          payload["result"]?.jsonArray?.map(::mapSigninClass)
+              ?: throw IllegalStateException("签到课程响应格式无效")
       Result.success(SigninStatusResponse(code = 200, message = "获取成功", data = classes))
-    } catch (_: Exception) {
-      Result.success(SigninStatusResponse(code = 200, message = "获取成功"))
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      Result.failure(error)
     }
   }
 
@@ -119,7 +143,14 @@ internal class LocalSigninApiBackend : SigninApiBackend {
   ): Result<SigninActionResponse> {
     val authSession =
         LocalAuthSessionStore.get() ?: return Result.failure(localUnauthenticatedApiException())
-    val signinSession = runCatching { currentSession(authSession.studentId()) }.getOrNull()
+    val signinSession =
+        try {
+          currentSession(authSession.studentId())
+        } catch (cancelled: CancellationException) {
+          throw cancelled
+        } catch (_: Exception) {
+          null
+        }
     if (signinSession == null) {
       val error = loginLastError ?: "iclass 登录失败"
       loginLastError = null
@@ -173,23 +204,27 @@ internal class LocalSigninApiBackend : SigninApiBackend {
               message = sanitizeLocalSigninMessage(success, rawMessage),
           )
       )
+    } catch (cancelled: CancellationException) {
+      throw cancelled
     } catch (_: Exception) {
       Result.success(SigninActionResponse(code = 400, success = false, message = "签到失败，请稍后重试"))
     }
   }
 
   private suspend fun currentSession(studentId: String): LocalSigninSession? {
+    val cacheKey = "${ConnectionRuntime.currentMode() ?: ConnectionMode.DIRECT}:$studentId"
     sessionMutex
-        .withLock { sessionCache[studentId] }
+        .withLock { sessionCache[cacheKey] }
         ?.let {
           return it
         }
     val created = login(studentId) ?: return null
-    return sessionMutex.withLock { sessionCache.getOrPut(studentId) { created } }
+    return sessionMutex.withLock { sessionCache.getOrPut(cacheKey) { created } }
   }
 
   private fun invalidateSession(studentId: String) {
-    sessionCache.remove(studentId)
+    val cacheKey = "${ConnectionRuntime.currentMode() ?: ConnectionMode.DIRECT}:$studentId"
+    sessionCache.remove(cacheKey)
   }
 
   private suspend fun login(studentId: String): LocalSigninSession? {
@@ -297,7 +332,7 @@ private fun flexibleIntValue(obj: JsonObject, key: String): Int {
 private fun LocalAuthSession.studentId(): String = user.schoolid.ifBlank { username }
 
 private fun currentSigninDate(): String {
-  val date = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+  val date = Clock.System.now().toLocalDateTime(TimeZone.of("Asia/Shanghai")).date
   return buildString {
     append(date.year)
     append(date.month.ordinal.plus(1).toString().padStart(2, '0'))

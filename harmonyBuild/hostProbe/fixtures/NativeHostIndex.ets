@@ -99,7 +99,6 @@ struct Index {
       Button('Photo picker').onClick(() => this.perform(() => this.media('pickPhoto'))).enabled(!this.busy)
       Button('Camera picker').onClick(() => this.perform(() => this.media('capturePhoto'))).enabled(!this.busy)
       Button('Attachment picker').onClick(() => this.perform(() => this.media('pickLibraryAttachment'))).enabled(!this.busy)
-      Button('QR scanner').onClick(() => this.perform(() => this.media('scanLibraryQr'))).enabled(!this.busy)
     }.width('100%').height('100%').justifyContent(FlexAlign.Center)
   }
 }

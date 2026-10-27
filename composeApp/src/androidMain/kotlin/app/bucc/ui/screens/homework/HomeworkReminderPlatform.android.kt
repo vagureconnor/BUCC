@@ -9,4 +9,6 @@ actual fun notifyNewHomework(items: List<HomeworkItem>) {
   if (items.isNotEmpty()) showAndroidNewHomeworkNotification()
 }
 
-actual fun installHomeworkBackgroundTaskHandler(handler: HomeworkBackgroundTaskHandler) = Unit
+actual fun installHomeworkBackgroundTaskHandler(
+    handler: HomeworkBackgroundTaskHandler
+): HomeworkBackgroundTaskRegistration = HomeworkBackgroundTaskRegistration {}

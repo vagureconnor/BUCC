@@ -18,7 +18,9 @@ private var trayIcon: TrayIcon? = null
 actual fun homeworkReminderPollIntervalMillis(): Long =
     if (desktopNotifications) 30 * 60 * 1000L else 0L
 
-actual fun installHomeworkBackgroundTaskHandler(handler: HomeworkBackgroundTaskHandler) = Unit
+actual fun installHomeworkBackgroundTaskHandler(
+    handler: HomeworkBackgroundTaskHandler
+): HomeworkBackgroundTaskRegistration = HomeworkBackgroundTaskRegistration {}
 
 actual fun notifyNewHomework(items: List<HomeworkItem>) {
   if (!desktopNotifications || items.isEmpty() || GraphicsEnvironment.isHeadless()) return

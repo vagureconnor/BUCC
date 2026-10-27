@@ -62,14 +62,17 @@ interface ApiFactory {
 }
 
 internal object DefaultApiFactory : ApiFactory {
-  private val directBackends = LocalBackendSet()
-  private val webVpnBackends = LocalBackendSet()
+  private class BackendSets(
+      val direct: LocalBackendSet = LocalBackendSet(),
+      val webVpn: LocalBackendSet = LocalBackendSet(),
+  )
+
+  private var backendSets = BackendSets()
 
   private fun mode(): ConnectionMode = ConnectionRuntime.currentMode() ?: ConnectionMode.DIRECT
 
   fun clearCachedBackends() {
-    directBackends.clearCache()
-    webVpnBackends.clearCache()
+    backendSets = BackendSets()
   }
 
   override fun authService(): AuthServiceBackend = localBackends(mode()).authService
@@ -103,8 +106,8 @@ internal object DefaultApiFactory : ApiFactory {
 
   private fun localBackends(mode: ConnectionMode): LocalBackendSet =
       when (mode) {
-        ConnectionMode.DIRECT -> directBackends
-        ConnectionMode.WEBVPN -> webVpnBackends
+        ConnectionMode.DIRECT -> backendSets.direct
+        ConnectionMode.WEBVPN -> backendSets.webVpn
       }
 
   private class LocalBackendSet {
@@ -122,19 +125,5 @@ internal object DefaultApiFactory : ApiFactory {
     val gradeApi = LocalGradeApiBackend()
     val libBookApi = LocalLibBookApiBackend()
     val ihomeApi = LocalIhomeApiBackend()
-
-    fun clearCache() {
-      authService.resetCaptchaChallenge()
-      signinApi.clearCache()
-      spocApi.clearCache()
-      judgeApi.clearCache()
-      bykcApi.clearCache()
-      cgyyApi.clearCache()
-      ygdkApi.clearCache()
-      classroomApi.clearCache()
-      evaluationService.clearCache()
-      libBookApi.clearCache()
-      ihomeApi.clearCache()
-    }
   }
 }

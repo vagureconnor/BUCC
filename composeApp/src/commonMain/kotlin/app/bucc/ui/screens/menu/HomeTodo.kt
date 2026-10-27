@@ -504,16 +504,32 @@ private fun signinWindow(
 internal fun findSigninCourse(
     course: CourseClass,
     signinClasses: List<SigninClassDto>,
+    classDate: LocalDate? = null,
 ): SigninClassDto? {
-  val sameName = signinClasses.filter { it.courseName.trim() == course.courseName.trim() }
-  val beginTime = course.beginTime?.trim()
-  val endTime = course.endTime?.trim()
-  val timeMatches =
-      sameName.filter {
-        (beginTime == null || it.classBeginTime.trim() == beginTime) &&
-            (endTime == null || it.classEndTime.trim() == endTime)
+  val beginTime = course.beginTime?.let(::signinTimeParts) ?: return null
+  val endTime = course.endTime?.let(::signinTimeParts) ?: return null
+  return signinClasses
+      .filter { signinClass ->
+        if (signinClass.courseName.trim() != course.courseName.trim()) return@filter false
+        val signinBegin = signinTimeParts(signinClass.classBeginTime) ?: return@filter false
+        val signinEnd = signinTimeParts(signinClass.classEndTime) ?: return@filter false
+        (classDate == null ||
+            listOfNotNull(beginTime.first, endTime.first, signinBegin.first, signinEnd.first).all {
+              it == classDate
+            }) && beginTime.second == signinBegin.second && endTime.second == signinEnd.second
       }
-  return timeMatches.singleOrNull()
+      .singleOrNull()
+}
+
+private fun signinTimeParts(value: String): Pair<LocalDate?, LocalTime>? {
+  val normalized = value.trim()
+  if ('-' in normalized && (' ' in normalized || 'T' in normalized)) {
+    val dateTime =
+        runCatching { LocalDateTime.parse(normalized.replace(" ", "T")) }.getOrNull() ?: return null
+    return dateTime.date to dateTime.time
+  }
+  val time = parseClockTime(normalized) ?: return null
+  return null to time
 }
 
 internal fun buildYgdkTodoItem(

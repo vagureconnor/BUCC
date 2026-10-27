@@ -145,7 +145,11 @@ internal class LocalLibBookApiBackend : LibBookApiBackend {
         }
         val response = client.reserve(request.copy(seatId = seatId))
         val message =
-            response.string("message").ifBlank { response.string("msg").ifBlank { "预约成功" } }
+            response.string("message").ifBlank {
+              response.string("msg").ifBlank {
+                if (response.isBusinessSuccess()) "预约成功" else "预约结果无效，请刷新预约记录确认"
+              }
+            }
         LibBookReserveResponse(
             success = response.isBusinessSuccess(),
             message = message,
@@ -184,7 +188,11 @@ internal class LocalLibBookApiBackend : LibBookApiBackend {
         }
         val response = client.cancelBooking(bookingId)
         val message =
-            response.string("message").ifBlank { response.string("msg").ifBlank { "取消成功" } }
+            response.string("message").ifBlank {
+              response.string("msg").ifBlank {
+                if (response.isBusinessSuccess()) "取消成功" else "取消结果无效，请刷新预约记录确认"
+              }
+            }
         if (!response.isBusinessSuccess()) {
           val errorCode = response.messageToLibBookErrorCode()
           throw LocalLibBookApiException(message, errorCode, errorCode.toLibBookHttpStatus())
@@ -209,6 +217,8 @@ internal class LocalLibBookApiBackend : LibBookApiBackend {
 
     return try {
       Result.success(block(currentClient(username)))
+    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+      throw cancelled
     } catch (error: Exception) {
       Result.failure(mapFailure(error, defaultMessage))
     }
@@ -693,14 +703,18 @@ private fun mapBooking(element: JsonElement): LibBookBookingDto {
       endTime = raw.string("endTime").ifBlank { raw.string("end_time") },
       status = raw.string("status"),
       statusName = raw.string("status_name"),
+      cancellationAllowed = raw.int("oksign") == 1,
   )
 }
 
 private fun JsonObject.isBusinessSuccess(): Boolean {
   val code = this["code"]?.jsonPrimitive?.intOrNull
-  if (code != null && code !in setOf(0, 1)) return false
+  if (code !in setOf(0, 1)) return false
   val message = string("message").ifBlank { string("msg") }
-  return !message.contains("失败") &&
+  if (code == 1 && message !in setOf("操作成功", "预约成功", "取消成功")) return false
+  return !message.contains("未成功") &&
+      !message.contains("不成功") &&
+      !message.contains("失败") &&
       !message.contains("不可") &&
       !message.contains("已被") &&
       !message.contains("不能取消") &&
@@ -717,11 +731,14 @@ private fun JsonObject.messageToLibBookErrorCode(): String {
     message.contains("已取消") ||
         message.contains("用户取消") ||
         message.contains("已结束") ||
+        message.contains("已完成") -> "libbook_booking_ended"
+    message.contains("入馆") ||
+        message.contains("到馆") ||
+        message.contains("门禁") ||
         message.contains("不能取消") ||
         message.contains("无法取消") ||
-        message.contains("已完成") ||
-        message.contains("不存在") ||
-        message.contains("失效") -> "libbook_not_found"
+        message.contains("无权限") -> "libbook_not_eligible"
+    message.contains("不存在") || message.contains("失效") -> "libbook_not_found"
     message.contains("已被") || message.contains("不可") || message.contains("无可预约") ->
         "libbook_seat_unavailable"
     else -> "libbook_error"
@@ -731,6 +748,8 @@ private fun JsonObject.messageToLibBookErrorCode(): String {
 private fun String.toLibBookHttpStatus(): HttpStatusCode =
     when (this) {
       "libbook_not_found" -> HttpStatusCode.NotFound
+      "libbook_booking_ended" -> HttpStatusCode.Conflict
+      "libbook_not_eligible" -> HttpStatusCode.Forbidden
       "libbook_seat_unavailable" -> HttpStatusCode.Conflict
       "invalid_request" -> HttpStatusCode.BadRequest
       else -> HttpStatusCode.BadGateway

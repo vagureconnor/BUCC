@@ -155,7 +155,7 @@ class HomeTodoViewportTest {
   }
 
   @Test
-  fun `todo viewport shrinks below three items and keeps three-card height above`() {
+  fun `home todo preview shows at most three cards without an inner scroll`() {
     for (count in 0..4) {
       val todos =
           (1..count).map { index ->
@@ -196,16 +196,23 @@ class HomeTodoViewportTest {
       (1..minOf(count, 3)).forEach {
         compose.onNodeWithTag("home-todo-card-todo-$it").assertIsDisplayed()
       }
+      if (count > 3) {
+        compose.onNodeWithTag("home-todo-viewport").performTouchInput {
+          val start = center.copy(y = center.y + 80f)
+          down(start)
+          moveTo(start.copy(y = start.y - 500f))
+          up()
+        }
+        compose.onAllNodesWithTag("home-todo-card-todo-4").assertCountEquals(0)
+      }
       app.bucc.ui.saveRenderedEvidence(
           "home-todos-$count",
           compose.onNodeWithTag("home-screen-scroll").captureToImage(),
       )
     }
 
-    compose
-        .onNodeWithTag("home-todo-viewport")
-        .performScrollToNode(hasTestTag("home-todo-card-todo-4"))
-    compose.onNodeWithTag("home-todo-card-todo-4").assertIsDisplayed()
+    compose.onNodeWithTag("home-screen-scroll").performScrollToNode(hasText("查看所有待办"))
+    compose.onNodeWithText("查看所有待办").assertIsDisplayed()
   }
 
   @Test
@@ -416,8 +423,8 @@ class HomeTodoViewportTest {
     assertTodoViewportNaturalHeight()
     compose.onNodeWithText("当前没有待办").assertIsDisplayed()
 
-    compose.onNodeWithTag("home-screen-scroll").performScrollToNode(hasText("查看全部待办"))
-    compose.onNodeWithText("查看全部待办").assertIsDisplayed().performClick()
+    compose.onNodeWithTag("home-screen-scroll").performScrollToNode(hasText("查看所有待办"))
+    compose.onNodeWithText("查看所有待办").assertIsDisplayed().performClick()
     assertEquals(1, openedTodos)
   }
 

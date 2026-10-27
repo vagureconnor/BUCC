@@ -47,9 +47,6 @@ kotlin {
     androidMain.dependencies {
       implementation("org.jetbrains.compose.ui:ui-tooling-preview:$composeVersion")
       implementation(libs.androidx.activity.compose)
-      implementation("androidx.camera:camera-camera2:1.4.2")
-      implementation("androidx.camera:camera-lifecycle:1.4.2")
-      implementation("androidx.camera:camera-view:1.4.2")
       implementation("com.google.zxing:core:3.5.3")
     }
     commonMain.dependencies {
@@ -116,9 +113,11 @@ val tdPackagingArch =
             }
         )
 val tdPackagingResources = layout.buildDirectory.dir("td-packaging/resources")
+val desktopPackagingJavaHome = providers.environmentVariable("BUCC_JAVA_HOME")
 
 compose.desktop {
   application {
+    if (desktopPackagingJavaHome.isPresent) javaHome = desktopPackagingJavaHome.get()
     mainClass = "app.bucc.MainKt"
     jvmArgs(
         "--add-opens=java.desktop/sun.awt=ALL-UNNAMED",
@@ -145,6 +144,16 @@ compose.desktop {
         bundleID = "app.bucc"
         iconFile = project.file("icons/app.icns")
         minimumSystemVersion = "11.0"
+        infoPlist {
+          extraKeysRawXml =
+              """
+              <key>NSCalendarsUsageDescription</key>
+              <string>将课表导入系统日历</string>
+              <key>NSCalendarsFullAccessUsageDescription</key>
+              <string>将课表导入系统日历并更新已导入的课程</string>
+              """
+                  .trimIndent()
+        }
       }
       linux { iconFile = project.file("icons/app.png") }
 
@@ -163,6 +172,18 @@ compose.desktop {
     }
   }
 }
+
+// The runtime image is shared between packaging tasks. Its cache key must include
+// target architecture and the explicitly selected JDK, just like native helpers.
+tasks
+    .matching { it.name == "createRuntimeImage" }
+    .configureEach {
+      inputs.property("bucc.packaging.arch", tdPackagingArch)
+      inputs.property(
+          "bucc.packaging.javaHome",
+          desktopPackagingJavaHome.orElse("default-toolchain"),
+      )
+    }
 
 val packageOutputPath = providers.gradleProperty("bucc.packageOutput").getOrElse("compose/binaries")
 val trimDesktopIcons by
@@ -213,6 +234,21 @@ val setMacBundleVersion by
           macInfoPlist.absolutePath,
       )
     }
+val setMacReleaseBundleVersion by
+    tasks.registering(Exec::class) {
+      dependsOn("createReleaseDistributable")
+      commandLine(
+          "/usr/libexec/PlistBuddy",
+          "-c",
+          "Set :CFBundleVersion $macBundleVersion",
+          macReleaseAppBundle.resolve("Contents/Info.plist").absolutePath,
+      )
+    }
+
+if (System.getProperty("os.name").startsWith("Mac", ignoreCase = true)) {
+  signTrimmedMacReleaseBundle.configure { dependsOn(setMacReleaseBundleVersion) }
+}
+
 val signMacBundleAfterVersionUpdate by
     tasks.registering(Exec::class) {
       dependsOn(setMacBundleVersion)
@@ -319,6 +355,8 @@ if (System.getProperty("os.name").startsWith("Mac", ignoreCase = true)) {
                     "WebKit",
                     "-framework",
                     "Cocoa",
+                    "-framework",
+                    "EventKit",
                     "-o",
                     nativeLibrary.get().asFile.absolutePath,
                 )
@@ -370,11 +408,41 @@ tasks.withType<Test>().configureEach {
 }
 
 // The app owns this credential-free campus helper; it never launches or configures a VPN client.
+val campusProxyGoos =
+    when {
+      System.getProperty("os.name").startsWith("Mac", ignoreCase = true) -> "darwin"
+      System.getProperty("os.name").startsWith("Windows", ignoreCase = true) -> "windows"
+      System.getProperty("os.name").startsWith("Linux", ignoreCase = true) -> "linux"
+      else ->
+          throw GradleException("Unsupported campus proxy host: ${System.getProperty("os.name")}")
+    }
+val campusProxyGoarch =
+    when (tdPackagingArch.get()) {
+      "x86_64" -> "amd64"
+      "arm64" -> "arm64"
+      else ->
+          throw GradleException("Unsupported campus proxy architecture: ${tdPackagingArch.get()}")
+    }
+val campusProxyName =
+    if (campusProxyGoos == "windows") "bucc-campus-proxy.exe" else "bucc-campus-proxy"
+val campusProxyOutput =
+    rootProject.layout.buildDirectory.file("campus-proxy/desktop/$campusProxyName")
 val buildPhysicalCampusProxy by
     tasks.registering(Exec::class) {
       inputs.dir(rootProject.file("third_party/bucc-physical-proxy"))
       inputs.file(rootProject.file("script/build_campus_proxy.sh"))
-      outputs.file(rootProject.layout.buildDirectory.file("campus-proxy/desktop/bucc-campus-proxy"))
+      inputs.property("goos", campusProxyGoos)
+      inputs.property("goarch", campusProxyGoarch)
+      outputs.file(campusProxyOutput)
+      doFirst {
+        val outputDirectory = campusProxyOutput.get().asFile.parentFile
+        outputDirectory.mkdirs()
+        listOf("bucc-campus-proxy", "bucc-campus-proxy.exe").forEach { name ->
+          outputDirectory.resolve(name).delete()
+        }
+      }
+      environment("GOOS", campusProxyGoos)
+      environment("GOARCH", campusProxyGoarch)
       workingDir(rootProject.projectDir)
       commandLine(
           providers.environmentVariable("BUCC_BASH").getOrElse("bash"),

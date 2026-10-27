@@ -14,7 +14,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.bucc.api.ConnectionMode
 import app.bucc.api.plane.PaperPlaneApi
@@ -35,7 +38,6 @@ import app.bucc.td.TdRuntime
 import app.bucc.ui.common.components.AppTopBar
 import app.bucc.ui.common.components.Sidebar
 import app.bucc.ui.common.util.BackHandlerCompat
-import app.bucc.ui.common.util.supportsQrCamera
 import app.bucc.ui.screens.attendance.AttendanceScreen
 import app.bucc.ui.screens.attendance.AttendanceViewModel
 import app.bucc.ui.screens.bykc.*
@@ -63,7 +65,6 @@ import app.bucc.ui.screens.ihome.IhomeViewModel
 import app.bucc.ui.screens.libbook.LibBookBookingsScreen
 import app.bucc.ui.screens.libbook.LibBookHomeScreen
 import app.bucc.ui.screens.libbook.LibBookReserveScreen
-import app.bucc.ui.screens.libbook.LibBookScanScreen
 import app.bucc.ui.screens.libbook.LibBookSeminarScreen
 import app.bucc.ui.screens.libbook.LibBookSeminarViewModel
 import app.bucc.ui.screens.libbook.LibBookViewModel
@@ -85,7 +86,10 @@ import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.plus
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 
@@ -123,7 +127,6 @@ enum class AppScreen {
   LIBBOOK_RESERVE,
   LIBBOOK_BOOKINGS,
   LIBBOOK_SEMINAR,
-  LIBBOOK_SCAN,
   YGDK_HOME,
   YGDK_FORM,
 }
@@ -139,6 +142,19 @@ internal fun dispatchNavigationBack(
     return true
   }
   return navController.navigateBack()
+}
+
+@Composable
+internal fun SessionViewModelStore(sessionKey: Any, content: @Composable () -> Unit) {
+  key(sessionKey) {
+    val owner = remember { SessionViewModelStoreOwner() }
+    DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
+    CompositionLocalProvider(LocalViewModelStoreOwner provides owner, content = content)
+  }
+}
+
+private class SessionViewModelStoreOwner : ViewModelStoreOwner {
+  override val viewModelStore = ViewModelStore()
 }
 
 /**
@@ -164,6 +180,40 @@ fun MainAppScreen(
     navController: NavigationController = rememberNavigationController(),
     sessionAvailable: Boolean = true,
 ) {
+  SessionViewModelStore(userData.schoolid to connectionMode) {
+    MainAppScreenContent(
+        userData = userData,
+        userInfo = userInfo,
+        connectionMode = connectionMode,
+        availableConnectionModes = availableConnectionModes,
+        onEnsureUserInfo = onEnsureUserInfo,
+        onConnectionModeSelected = onConnectionModeSelected,
+        onLogoutClick = onLogoutClick,
+        themeMode = themeMode,
+        onThemeModeSelected = onThemeModeSelected,
+        modifier = modifier,
+        navController = navController,
+        sessionAvailable = sessionAvailable,
+    )
+  }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalTime::class)
+@Composable
+private fun MainAppScreenContent(
+    userData: UserData,
+    userInfo: UserInfo?,
+    connectionMode: ConnectionMode,
+    availableConnectionModes: List<ConnectionMode>,
+    onEnsureUserInfo: () -> Unit,
+    onConnectionModeSelected: (ConnectionMode) -> Unit,
+    onLogoutClick: () -> Unit,
+    themeMode: ThemeMode,
+    onThemeModeSelected: (ThemeMode) -> Unit,
+    modifier: Modifier,
+    navController: NavigationController,
+    sessionAvailable: Boolean,
+) {
   val scope = rememberCoroutineScope()
   val currentScreen = navController.currentScreen
   val cgyyScreens = remember {
@@ -182,7 +232,6 @@ fun MainAppScreen(
         AppScreen.LIBBOOK_RESERVE,
         AppScreen.LIBBOOK_BOOKINGS,
         AppScreen.LIBBOOK_SEMINAR,
-        AppScreen.LIBBOOK_SCAN,
     )
   }
 
@@ -272,7 +321,6 @@ fun MainAppScreen(
             LibBookSeminarViewModel()
           }
       else null
-  val qrCameraSupported = remember { supportsQrCamera() }
   val libBookViewModel: LibBookViewModel? =
       if (shouldKeepLibBookViewModel) {
         viewModel(key = "libbook-${userData.schoolid}") { LibBookViewModel() }
@@ -292,6 +340,11 @@ fun MainAppScreen(
         )
       }
   DisposableEffect(homeworkViewModel) { onDispose { homeworkViewModel.close() } }
+  LifecycleResumeEffect(homeworkViewModel, sessionAvailable) {
+    homeworkViewModel.setSessionAvailable(sessionAvailable)
+    if (sessionAvailable) homeworkViewModel.onAppForegrounded()
+    onPauseOrDispose {}
+  }
   LaunchedEffect(sessionAvailable) {
     homeworkViewModel.setSessionAvailable(sessionAvailable)
     if (!sessionAvailable) {
@@ -359,8 +412,11 @@ fun MainAppScreen(
           !ygdkTermDone
 
   var selectedCourse by remember { mutableStateOf<CourseClass?>(null) }
+  var selectedCourseDate by remember { mutableStateOf<LocalDate?>(null) }
   val selectedSigninCourse =
-      selectedCourse?.let { course -> findSigninCourse(course, signinUiState.classes) }
+      selectedCourse
+          ?.takeIf { selectedCourseDate == homeNow.date }
+          ?.let { course -> findSigninCourse(course, signinUiState.classes, selectedCourseDate) }
   var selectedBykcCourseId by remember { mutableStateOf<Long?>(null) }
   var selectedBykcCourseSnapshot by remember { mutableStateOf<BykcCourseDto?>(null) }
   val bykcCoursesListState = rememberLazyListState()
@@ -906,7 +962,6 @@ fun MainAppScreen(
         AppScreen.CAMPUS_FINANCE -> "校园财务"
         AppScreen.LIBBOOK_HOME -> "图书馆空间预约"
         AppScreen.LIBBOOK_SEMINAR -> "图书馆研讨间预约"
-        AppScreen.LIBBOOK_SCAN -> "扫码预约"
         AppScreen.LIBBOOK_RESERVE -> "预约座位"
         AppScreen.LIBBOOK_BOOKINGS -> "我的座位预约"
         AppScreen.YGDK_HOME -> "阳光打卡"
@@ -964,8 +1019,6 @@ fun MainAppScreen(
         when (currentScreen) {
           AppScreen.HOME ->
               HomeScreen(
-                  onScanLibraryQr =
-                      if (qrCameraSupported) ({ navigateTo(AppScreen.LIBBOOK_SCAN) }) else null,
                   upcomingClasses = upcomingScheduleState.classes,
                   signinClasses = signinUiState.classes,
                   now = homeNow,
@@ -994,6 +1047,7 @@ fun MainAppScreen(
                       },
                   signingTodoId =
                       signinUiState.signingInCourseId?.let { courseId -> "signin:$courseId" },
+                  isSigninInProgress = signinUiState.signingInCourseId != null,
                   scoreUpdateNotice = gradeScoreWatchUiState.notice,
                   onRetrySchedule = { scheduleViewModel.loadUpcomingSchedule(forceRefresh = true) },
                   onRefresh = { refreshHomeData() },
@@ -1003,6 +1057,12 @@ fun MainAppScreen(
                   onSigninTodoClick = { courseId -> signinViewModel.performSignin(courseId) },
                   onCourseClick = {
                     selectedCourse = it
+                    selectedCourseDate = homeNow.date
+                    navigateTo(AppScreen.COURSE_DETAIL)
+                  },
+                  onCourseOccurrenceClick = { occurrence ->
+                    selectedCourse = occurrence.course
+                    selectedCourseDate = occurrence.date
                     navigateTo(AppScreen.COURSE_DETAIL)
                   },
                   featureSections =
@@ -1154,8 +1214,19 @@ fun MainAppScreen(
                   onTermSelected = { scheduleViewModel.selectTerm(it) },
                   onWeekSelected = { scheduleViewModel.selectWeek(it) },
                   onNavigateBack = { navigateBack() },
-                  onCourseClick = {
-                    selectedCourse = it
+                  onCourseClick = { course ->
+                    selectedCourse = course
+                    selectedCourseDate =
+                        runCatching {
+                              val week = requireNotNull(scheduleUiState.selectedWeek)
+                              val weekday = requireNotNull(course.dayOfWeek)
+                              require(weekday in 1..7)
+                              LocalDate.parse(
+                                      week.startDate.substringBefore('T').substringBefore(' ')
+                                  )
+                                  .plus(weekday - 1, DateTimeUnit.DAY)
+                            }
+                            .getOrNull()
                     navigateTo(AppScreen.COURSE_DETAIL)
                   },
               )
@@ -1168,7 +1239,11 @@ fun MainAppScreen(
                     signinCourse = selectedSigninCourse,
                     isLoadingSigninClasses = signinUiState.isLoading,
                     isSigningIn = signinUiState.signingInCourseId == selectedSigninCourse?.courseId,
+                    isAnySigninInProgress = signinUiState.signingInCourseId != null,
                     signinResult = signinUiState.signinResult,
+                    signinError = signinUiState.error,
+                    onRetrySignin = { signinViewModel.ensureTodayLoaded(forceRefresh = true) },
+                    onOpenSigninList = { navigateTo(AppScreen.SIGNIN) },
                     onSigninClick = {
                       selectedSigninCourse?.let { signinViewModel.performSignin(it.courseId) }
                     },
@@ -1320,6 +1395,7 @@ fun MainAppScreen(
                   signingTodoId = signinUiState.signingInCourseId?.let { "signin:$it" },
                   onTodoClick = { handleHomeTodoClick(it) },
                   onSigninTodoClick = { signinViewModel.performSignin(it) },
+                  isSigninInProgress = signinUiState.signingInCourseId != null,
               )
           AppScreen.PAPER_PLANE -> PaperPlaneScreen(planeApi)
           AppScreen.CAMPUS_FINANCE ->
@@ -1333,8 +1409,6 @@ fun MainAppScreen(
                     navigateTo(AppScreen.LIBBOOK_RESERVE)
                   },
                   onSeminarClick = { navigateTo(AppScreen.LIBBOOK_SEMINAR) },
-                  onScanClick =
-                      if (qrCameraSupported) ({ navigateTo(AppScreen.LIBBOOK_SCAN) }) else null,
                   onBookingsClick = {
                     libBookViewModel?.ensureBookingsLoaded()
                     navigateTo(AppScreen.LIBBOOK_BOOKINGS)
@@ -1350,14 +1424,6 @@ fun MainAppScreen(
           AppScreen.LIBBOOK_BOOKINGS ->
               libBookViewModel?.let { LibBookBookingsScreen(viewModel = it) }
           AppScreen.LIBBOOK_SEMINAR -> libBookSeminarViewModel?.let { LibBookSeminarScreen(it) }
-          AppScreen.LIBBOOK_SCAN ->
-              LibBookScanScreen(
-                  onSeat = { target ->
-                    libBookViewModel?.openQrTarget(target)
-                    navigateTo(AppScreen.LIBBOOK_RESERVE)
-                  },
-                  onBack = { navController.navigateBack() },
-              )
         }
       }
     }

@@ -14,8 +14,10 @@ campus helper is not covered solely by that license.
   `sessionForAttendance()` and internal `LocalSigninSession` for attendance
   lookup, route requests through `localUpstreamUrl`, and select direct versus
   WebVPN endpoints with `localBusinessUsesWebVpnGateway()` and separate path
-  forms. `SigninViewModel.kt` keeps the existing BUCC state and refresh flow;
-  no upstream ViewModel behavior was newly required.
+  forms. The class-list request reports login, transport, HTTP, and parse
+  failures distinctly from a valid empty result, and uses the Shanghai date.
+  The BUCC ViewModel keeps retryable loading state; no unrelated UBAA features
+  were migrated.
 - UBAA sunshine check-in (YGDK): `shared/src/commonMain/kotlin/app/bucc/api/local/LocalYgdkApi.kt`
   is derived from the same pinned UBAA source (MIT). The overview keeps UBAA's
   best-effort treatment of the optional `Clockin/getCount` call: a failed count
@@ -46,6 +48,6 @@ campus helper is not covered solely by that license.
   in third_party/bucc-physical-proxy/go.mod and go.sum; source can be obtained
   with `go mod download` using the documented Go toolchain.
 
-The local desktop app bundle includes the retained helper source, license, and
-integration notes. This delivery is private and local; it does not authorize a
-public release.
+The desktop app bundle includes the retained helper source, license, and
+integration notes. Public source and release distributions retain these notices
+and the corresponding helper source.

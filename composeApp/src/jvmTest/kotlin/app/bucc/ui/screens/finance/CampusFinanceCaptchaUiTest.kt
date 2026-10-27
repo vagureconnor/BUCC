@@ -8,11 +8,13 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextInput
 import app.bucc.api.finance.CampusNetworkTraffic
 import app.bucc.api.finance.CampusRechargeBackend
@@ -111,7 +113,11 @@ class CampusFinanceCaptchaUiTest {
     setScreen(session, recharge, loaders)
 
     compose.onNodeWithText("网费").performClick()
-    compose.waitUntil(5_000) { session.ensureCalls == 1 && loaders.internetCalls == 1 }
+    waitForInternetBalances()
+    compose.runOnIdle {
+      assertEquals(1, session.ensureCalls)
+      assertEquals(1, loaders.internetCalls)
+    }
     compose.onAllNodesWithText("登录验证码").assertCountEquals(0)
     compose.onAllNodesWithText("网费信息尚未完成本次登录验证码验证。").assertCountEquals(0)
     compose.onNodeWithText("网费余额").assertIsDisplayed()
@@ -260,6 +266,7 @@ class CampusFinanceCaptchaUiTest {
     compose.onNodeWithText("登录验证码").performTextInput("login-demo")
     compose.onNodeWithText("验证并继续").performClick()
     compose.waitUntil(5_000) { loaders.internetCalls == 1 }
+    waitForInternetForm()
     compose.onNodeWithText("充值金额（元）").performScrollTo().performTextInput("1")
     compose.onNodeWithText("充值验证码").performScrollTo().performTextInput("synthetic-code")
     compose.onNodeWithText("提交充值并打开支付页面").performScrollTo().performClick()
@@ -288,6 +295,7 @@ class CampusFinanceCaptchaUiTest {
     compose.onNodeWithText("登录验证码").performTextInput("login-demo")
     compose.onNodeWithText("验证并继续").performClick()
     compose.waitUntil(5_000) { loaders.internetCalls == 1 }
+    waitForInternetForm()
     compose.onNodeWithText("充值金额（元）").performScrollTo().performTextInput("1")
     compose.onNodeWithText("充值验证码").performScrollTo().performTextInput("old-code")
     compose.onNodeWithText("提交充值并打开支付页面").performScrollTo().performClick()
@@ -337,6 +345,7 @@ class CampusFinanceCaptchaUiTest {
     compose.onNodeWithText("登录验证码").performTextInput("login-demo")
     compose.onNodeWithText("验证并继续").performClick()
     compose.waitUntil(5_000) { loaders.internetCalls == 1 }
+    waitForInternetForm()
     compose.onNodeWithText("充值金额（元）").performScrollTo().performTextInput("10")
     compose.onNodeWithText("充值验证码").performScrollTo().performTextInput("synthetic-code")
     compose.onNodeWithText("提交充值并打开支付页面").performScrollTo().performClick()
@@ -371,6 +380,26 @@ class CampusFinanceCaptchaUiTest {
     compose.onNodeWithText("充值验证码").performScrollTo().performTextInput("retry-code")
     compose.onNodeWithText("提交充值并打开支付页面").performScrollTo().assertIsEnabled()
     assertEquals(0, recharge.createCalls)
+  }
+
+  private fun waitForInternetBalances() {
+    compose.waitUntil(5_000) { compose.onAllNodesWithText("网费与流量").fetchSemanticsNodes().size == 1 }
+    // The loaded fixture has no reminders: item 3 is the balance card.
+    // Scroll once, then let its layout settle instead of restarting a text search.
+    compose.onNode(hasScrollToIndexAction()).performScrollToIndex(3)
+    compose.waitForIdle()
+    compose.onNodeWithText("网费余额").assertIsDisplayed()
+  }
+
+  private fun waitForInternetForm() {
+    waitForInternetBalances()
+    // The fixture has no reminders: item 4 is the recharge card. Keep its loading
+    // composition alive; repeating a text search scrolls back and restarts prepare.
+    compose.onNode(hasScrollToIndexAction()).performScrollToIndex(4)
+    compose.waitUntil(5_000) {
+      compose.onAllNodesWithText("充值金额（元）").fetchSemanticsNodes().size == 1
+    }
+    compose.waitForIdle()
   }
 
   private fun setScreen(

@@ -14,13 +14,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
@@ -46,6 +44,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.bucc.getPlatform
 import app.bucc.model.dto.CourseClass
 import app.bucc.model.dto.SigninClassDto
 import app.bucc.repository.UpcomingClass
@@ -89,8 +88,9 @@ internal fun HomeScreen(
     onOpenTodos: () -> Unit,
     onFeatureOrderChange: (String, List<String>) -> Unit,
     onCourseClick: (CourseClass) -> Unit,
-    onScanLibraryQr: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onCourseOccurrenceClick: ((UpcomingClass) -> Unit)? = null,
+    isSigninInProgress: Boolean = false,
 ) {
   val pullRefreshState = rememberPullRefreshState(refreshing = isRefreshing, onRefresh = onRefresh)
   var editingOrder by remember { mutableStateOf(false) }
@@ -109,6 +109,7 @@ internal fun HomeScreen(
       }
   val progress =
       remember(progressOccurrences, now) { todayCourseProgress(progressOccurrences, now) }
+  val isMobile = getPlatform().isMobile
   val scheduleContent: LazyListScope.() -> Unit = {
     item { SectionHeading("课表", "今天无课或已全部结束时显示下一有课日") }
     if (error != null) item { HomeErrorCard(error, onRetrySchedule) }
@@ -127,7 +128,8 @@ internal fun HomeScreen(
             else null,
             signingTodoId,
             onSigninTodoClick,
-            { onCourseClick(occurrence.course) },
+            { onCourseOccurrenceClick?.invoke(occurrence) ?: onCourseClick(occurrence.course) },
+            isSigninInProgress,
         )
       }
     }
@@ -147,7 +149,13 @@ internal fun HomeScreen(
           else HomeEmptyCard("当前没有待办", "新的课程与任务会显示在这里")
         }
     items(visibleTodos, key = { "todo:${it.id}" }) { item ->
-      HomeTodoCard(item, signingTodoId == item.id, { onTodoClick(item) }, onSigninTodoClick)
+      HomeTodoCard(
+          item,
+          signingTodoId == item.id,
+          { onTodoClick(item) },
+          onSigninTodoClick,
+          isSigninInProgress = isSigninInProgress,
+      )
     }
   }
   BoxWithConstraints(modifier = modifier.fillMaxSize().pullRefresh(pullRefreshState)) {
@@ -162,17 +170,6 @@ internal fun HomeScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-          }
-          onScanLibraryQr?.let { scan ->
-            OutlinedButton(onClick = scan, modifier = Modifier.padding(start = 8.dp)) {
-              Icon(
-                  Icons.Default.QrCodeScanner,
-                  contentDescription = null,
-                  modifier = Modifier.size(18.dp),
-              )
-              Spacer(Modifier.width(6.dp))
-              Text("扫码预约")
-            }
           }
           if (wide)
               featureSections.forEach { section ->
@@ -198,7 +195,7 @@ internal fun HomeScreen(
             }
       }
     }
-    if (wide) {
+    if (wide && !isMobile) {
       Column(
           Modifier.fillMaxSize().padding(20.dp),
           verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -241,7 +238,10 @@ internal fun HomeScreen(
                   else null,
                   signingTodoId,
                   onSigninTodoClick,
-                  { onCourseClick(occurrence.course) },
+                  {
+                    onCourseOccurrenceClick?.invoke(occurrence) ?: onCourseClick(occurrence.course)
+                  },
+                  isSigninInProgress,
               )
             }
         item { TodayCourseProgress(progress, now, isLoading, error, scheduleHasLoaded) }
@@ -264,26 +264,24 @@ internal fun HomeScreen(
               else HomeEmptyCard("当前没有待办", "新的课程与任务会显示在这里")
             }
           } else {
-            val visibleCount = visibleTodos.size.coerceAtMost(3)
-            val viewportHeight = 168.dp * visibleCount + 12.dp * (visibleCount - 1)
-            LazyColumn(
-                modifier =
-                    Modifier.fillMaxWidth().height(viewportHeight).testTag("home-todo-viewport"),
+            Column(
+                Modifier.fillMaxWidth().testTag("home-todo-viewport"),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-              items(visibleTodos, key = { "home-todo:${it.id}" }) { todo ->
+              visibleTodos.take(3).forEach { todo ->
                 HomeTodoCard(
                     todo,
                     signingTodoId == todo.id,
                     { onTodoClick(todo) },
                     onSigninTodoClick,
                     modifier = Modifier.height(168.dp),
+                    isSigninInProgress = isSigninInProgress,
                 )
               }
             }
           }
         }
-        item { TextButton(onClick = onOpenTodos) { Text("查看全部待办") } }
+        item { TextButton(onClick = onOpenTodos) { Text("查看所有待办") } }
         item { Spacer(Modifier.height(12.dp)) }
       }
     }
@@ -452,6 +450,7 @@ internal fun HomeTodoListScreen(
     onTodoClick: (HomeTodoItem) -> Unit,
     onSigninTodoClick: (String) -> Unit,
     modifier: Modifier = Modifier,
+    isSigninInProgress: Boolean = false,
 ) {
   LazyColumn(
       modifier.fillMaxSize(),
@@ -462,7 +461,13 @@ internal fun HomeTodoListScreen(
     if (isLoading && items.isEmpty()) item { HomeLoadingCard("正在同步待办", "各来源的结果会陆续显示") }
     if (!isLoading && items.isEmpty()) item { HomeEmptyCard("当前没有待办", "新的课程与任务会显示在这里") }
     items(items.sortedWith(homeTodoComparator), key = { "todo:${it.id}" }) { item ->
-      HomeTodoCard(item, signingTodoId == item.id, { onTodoClick(item) }, onSigninTodoClick)
+      HomeTodoCard(
+          item,
+          signingTodoId == item.id,
+          { onTodoClick(item) },
+          onSigninTodoClick,
+          isSigninInProgress = isSigninInProgress,
+      )
     }
   }
 }
@@ -521,6 +526,7 @@ private fun UpcomingClassCard(
     signingTodoId: String?,
     onSigninClick: (String) -> Unit,
     onClick: () -> Unit,
+    isSigninInProgress: Boolean,
 ) {
   val ongoing = occurrence.isInProgress(now)
   Card(
@@ -579,7 +585,7 @@ private fun UpcomingClassCard(
       if (signinClass != null) {
         Button(
             onClick = { onSigninClick(signinClass.courseId) },
-            enabled = signingTodoId != "signin:${signinClass.courseId}",
+            enabled = !isSigninInProgress,
             modifier = Modifier.testTag("home-course-signin-${signinClass.courseId}"),
         ) {
           if (signingTodoId == "signin:${signinClass.courseId}") {
@@ -604,6 +610,7 @@ internal fun HomeTodoCard(
     onClick: () -> Unit,
     onSigninClick: (String) -> Unit,
     modifier: Modifier = Modifier,
+    isSigninInProgress: Boolean = isSigning,
 ) {
   val isSigninItem = item.action is HomeTodoAction.SigninCourse
   Card(
@@ -679,7 +686,7 @@ internal fun HomeTodoCard(
       if (item.action is HomeTodoAction.SigninCourse) {
         Button(
             onClick = { onSigninClick(item.action.courseId) },
-            enabled = !isSigning,
+            enabled = !isSigninInProgress,
         ) {
           if (isSigning) {
             CircularProgressIndicator(

@@ -115,7 +115,7 @@ $env:WIX = $WixHome
 $env:PATH = (@((Join-Path $JdkHome 'bin'), (Split-Path -Parent $PythonExe), (Split-Path -Parent $GoExe), $WixHome, (Split-Path -Parent $BashExe), $oldEnvironment['PATH']) -join ';')
 New-Item -ItemType Directory -Path $OutputDirectory | Out-Null
 $buildStart = [DateTime]::UtcNow
-$sourceDirectory = Join-Path $env:TEMP ("BUCC-source-{0}-{1}" -f $PID, $SourceSha)
+$sourceDirectory = Join-Path (Join-Path $ToolsDirectory 'workspaces') ("BUCC-source-{0}-{1}" -f $PID, $SourceSha)
 $buildLog = Join-Path $OutputDirectory 'build.log'
 try {
     & $PythonExe $VerifierScript --archive $SourceArchive --provenance $ProvenanceFile --destination $sourceDirectory --source-sha $SourceSha --source-tree $SourceTree

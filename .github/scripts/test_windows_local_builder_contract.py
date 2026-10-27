@@ -23,7 +23,9 @@ class WindowsBuildContractTests(unittest.TestCase):
         for setting in ("$env:JAVA_HOME = $JdkHome", "$env:BUCC_BASH = $BashExe", "$env:BUCC_GO = $GoExe",
                         "$env:BUCC_TD_PACKAGING_PYTHON = $PythonExe", "$env:GOOS = 'windows'",
                         "$env:GOARCH = 'amd64'", "$env:WIX = $WixHome", "SetEnvironmentVariable($name, $oldEnvironment[$name], 'Process')"):
-            self.assertIn(setting, self.script)
+            self.assertNotIn('$sourceDirectory = Join-Path $env:TEMP', self.script)
+        self.assertIn("Join-Path $ToolsDirectory 'workspaces'", self.script)
+        self.assertIn(setting, self.script)
         self.assertIn('working x64 JDK', self.script)
         self.assertIn("'3.14|win-amd64|64'", self.script)
 

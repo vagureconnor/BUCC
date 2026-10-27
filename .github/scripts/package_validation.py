@@ -94,10 +94,6 @@ def _validate_macho_load_commands(data: bytes, endian: str) -> None:
         command, command_size = struct.unpack_from(endian + "II", data, cursor)
         if command_size < 8 or cursor + command_size > command_end:
             raise PackageError("Mach-O load command 大小越界")
-        if (command & 0x7FFFFFFF) == 0x1D and command_size >= 16:
-            signature_size = struct.unpack_from(endian + "I", data, cursor + 12)[0]
-            if signature_size:
-                raise PackageError("iOS IPA Mach-O 含有 embedded code signature")
         cursor += command_size
     if cursor != command_end:
         raise PackageError("Mach-O load command 区域长度不匹配")
@@ -114,7 +110,10 @@ def _check_macho(data: bytes, architecture: str) -> None:
 
 
 def _check_ios_macho(data: bytes) -> None:
-    arm_slices = [image for cpu_type, image in _macho_slices(data) if cpu_type == CPU_TYPES["arm64"]]
+    slices = _macho_slices(data)
+    if any(cpu_type != CPU_TYPES["arm64"] for cpu_type, _ in slices):
+        raise PackageError("iOS Mach-O 只允许实体设备 arm64 架构")
+    arm_slices = [image for _, image in slices]
     if not arm_slices:
         raise PackageError("iOS Mach-O 不包含 arm64 架构")
     for image in arm_slices:
@@ -127,6 +126,10 @@ def _check_ios_macho(data: bytes) -> None:
         for _ in range(ncmds):
             command, command_size = struct.unpack_from(endian + "II", image, cursor)
             base_command = command & 0x7FFFFFFF
+            if base_command == 0x1D and command_size >= 16:
+                signature_size = struct.unpack_from(endian + "I", image, cursor + 12)[0]
+                if signature_size:
+                    raise PackageError("iOS IPA Mach-O 含有 embedded code signature")
             if base_command == 0x32 and command_size >= 24:  # LC_BUILD_VERSION
                 platform = struct.unpack_from(endian + "I", image, cursor + 8)[0]
             elif base_command == 0x25 and command_size >= 16:  # LC_VERSION_MIN_IPHONEOS

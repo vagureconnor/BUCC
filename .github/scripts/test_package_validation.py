@@ -29,7 +29,7 @@ def app_contents(root: Path, cpu_type: int, native_arches: dict[str, int] | None
         "CFBundleVersion": "201",
     }
     (app / "Contents" / "Info.plist").write_bytes(plistlib.dumps(info))
-    (app / "Contents" / "MacOS" / "BUCC").write_bytes(macho(cpu_type))
+    (app / "Contents" / "MacOS" / "BUCC").write_bytes(macho(cpu_type, platform=1, code_signature_size=24))
     native_arches = native_arches or {}
     resource_root = app / "Contents/app/resources"
     components = {
@@ -41,7 +41,7 @@ def app_contents(root: Path, cpu_type: int, native_arches: dict[str, int] | None
     }
     for name, binary_path in components.items():
         binary_path.parent.mkdir(parents=True, exist_ok=True)
-        binary_path.write_bytes(macho(native_arches.get(name, cpu_type)))
+        binary_path.write_bytes(macho(native_arches.get(name, cpu_type), platform=1, code_signature_size=24))
     return app
 
 
@@ -124,6 +124,22 @@ class PackageValidationTests(unittest.TestCase):
                     archive.writestr(f"Payload/BUCC.app/{forbidden}", b"signature")
                 with self.assertRaisesRegex(PackageError, "签名"):
                     validate_ios_ipa(path, "2.0.1", 201)
+
+    def test_ios_rejects_fat_device_plus_simulator_slices(self):
+        arm = macho(0x0100000C, platform=2)
+        simulator = macho(0x01000007, platform=7, code_signature_size=24)
+        table = struct.pack(">II", 0xCAFEBABE, 2)
+        table += struct.pack(">iiIII", 0x0100000C, 0, 48, len(arm), 0)
+        table += struct.pack(">iiIII", 0x01000007, 0, 48 + len(arm), len(simulator), 0)
+        with tempfile.TemporaryDirectory() as temporary:
+            package = Path(temporary) / "mixed.ipa"
+            with zipfile.ZipFile(package, "w") as archive:
+                archive.writestr("Payload/BUCC.app/Info.plist", plistlib.dumps({
+                    "CFBundleExecutable": "BUCC", "CFBundleShortVersionString": "2.0.1", "CFBundleVersion": "201",
+                }))
+                archive.writestr("Payload/BUCC.app/BUCC", table + arm + simulator)
+            with self.assertRaises(PackageError):
+                validate_ios_ipa(package, "2.0.1", 201)
 
     def test_ios_rejects_embedded_signature_in_nested_framework(self):
         with tempfile.TemporaryDirectory() as temporary:

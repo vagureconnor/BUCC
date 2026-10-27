@@ -23,8 +23,8 @@ class AndroidBuilderTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.output = self.root / 'packages'
         self.home = self.root / 'home'
-        (self.home / '.android').mkdir(parents=True)
-        (self.home / '.android/BUCC-release.jks').write_bytes(b'fixture')
+        (self.home / 'Library/Application Support/BUCC/Signing').mkdir(parents=True)
+        (self.home / 'Library/Application Support/BUCC/Signing/BUCC-android-release.jks').write_bytes(b'fixture')
         jdk = self.root / 'jdk/bin'
         jdk.mkdir(parents=True)
         (jdk / 'keytool').touch()
@@ -65,7 +65,7 @@ class AndroidBuilderTests(unittest.TestCase):
             raise AssertionError(args)
         env = {'JAVA_HOME': str(self.root / 'jdk'), 'ANDROID_HOME': str(self.root / 'android-sdk')}
         def fake_keychain(service, required=True):
-            if missing_store and service.endswith('Release'):
+            if missing_store and service == 'app.bucc.android.release':
                 raise RuntimeError('Missing or inaccessible local Keychain item: ' + service)
             return key if service.endswith('Key') else store
         with patch.object(android, 'ROOT', self.root), patch.object(android.Path, 'home', return_value=self.home), \
@@ -78,8 +78,8 @@ class AndroidBuilderTests(unittest.TestCase):
             self.run_main(missing_store=True)
         self.assertFalse(self.output.exists())
 
-    def test_wrong_upgrade_certificate_blocks_before_build(self):
-        with self.assertRaisesRegex(RuntimeError, 'differs from the previous official APK'):
+    def test_wrong_approved_certificate_blocks_before_build(self):
+        with self.assertRaisesRegex(RuntimeError, 'differs from the user-approved BUCC identity'):
             self.run_main(certificate='0' * 64)
         self.assertFalse(self.output.exists())
 

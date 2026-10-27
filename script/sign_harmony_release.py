@@ -216,13 +216,19 @@ def read_keychain_password(service: str = KEYCHAIN_SERVICE) -> str:
 def _prompt_kind(buffer: bytes) -> str | None:
     text = buffer.decode("utf-8", errors="ignore").lower()
     recent = text[-2048:]
-    if "password" not in recent:
-        return None
-    if "keystore" in recent:
+    if re.search(r"please\s+input\s+keystorepwd\b", recent):
         return "keystore"
-    if re.search(r"\bkey\b.{0,64}password", recent):
+    if re.search(r"please\s+input\s+keypwd\b", recent):
         return "key"
-    return "unknown"
+    if "issuer" in recent and re.search(r"(?:password|pwd)", recent):
+        return "unknown"
+    if "keystore" in recent and re.search(r"\bpassword\b", recent):
+        return "keystore"
+    if re.search(r"\bkey\b.{0,64}\bpassword\b", recent):
+        return "key"
+    if re.search(r"\bpassword\b|pwd", recent):
+        return "unknown"
+    return None
 
 
 def _ensure_echo_disabled(master_fd: int) -> None:
@@ -291,10 +297,7 @@ def run_interactive_signer(
             if prompt == "unknown":
                 raise SigningError("signing tool requested an unexpected password")
             if prompt in sent:
-                continue
-            expected_order = "keystore" if not sent else "key"
-            if prompt != expected_order:
-                raise SigningError("signing tool requested passwords in an unexpected order")
+                raise SigningError("signing tool requested a repeated password prompt")
             _ensure_echo_disabled(master_fd)
             os.write(master_fd, password.encode("utf-8") + b"\n")
             sent.add(prompt)

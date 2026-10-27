@@ -228,6 +228,52 @@ def patch_profile_content(content):
 
 
 class InteractivePasswordTests(unittest.TestCase):
+    def test_official_key_first_and_keystore_first_prompts_can_arrive_in_fragments(self):
+        prompts = (
+            ("please input KeyPwd (timeout 30 seconds):", "please input KeystorePwd (timeout 30 seconds):"),
+            ("please input KeystorePwd (timeout 30 seconds):", "please input KeyPwd (timeout 30 seconds):"),
+        )
+        for first_prompt, second_prompt in prompts:
+            with self.subTest(first_prompt=first_prompt), tempfile.TemporaryDirectory() as temporary:
+                fake_tool = Path(temporary) / "fake_signer.py"
+                fake_tool.write_text(
+                    "import os, sys, time\n"
+                    "def ask(prompt):\n"
+                    "    encoded = prompt.encode()\n"
+                    "    for chunk in (encoded[:7], encoded[7:19], encoded[19:]):\n"
+                    "        os.write(1, chunk)\n"
+                    "        time.sleep(0.02)\n"
+                    "    return sys.stdin.readline().rstrip('\\r\\n')\n"
+                    f"first = ask({first_prompt!r})\n"
+                    f"second = ask({second_prompt!r})\n"
+                    "sys.exit(0 if first == second else 9)\n",
+                    encoding="utf-8",
+                )
+                self.assertEqual(0, run_interactive_signer([sys.executable, str(fake_tool)], CANARY, timeout_seconds=5))
+
+    def test_issuer_unknown_and_repeated_prompts_are_rejected_without_resending(self):
+        cases = (
+            ("please input IssuerKeyPwd (timeout 30 seconds):", "unexpected password"),
+            ("please input KeystorePwd (timeout 30 seconds):", "repeated password"),
+            ("please input MysteryPwd (timeout 30 seconds):", "unexpected password"),
+        )
+        for prompt, message in cases:
+            with self.subTest(prompt=prompt), tempfile.TemporaryDirectory() as temporary:
+                fake_tool = Path(temporary) / "fake_signer.py"
+                if message == "repeated password":
+                    script = (
+                        "import sys\n"
+                        "print('please input KeystorePwd (timeout 30 seconds):', flush=True)\n"
+                        "sys.stdin.readline()\n"
+                        "print('please input KeystorePwd (timeout 30 seconds):', flush=True)\n"
+                        "sys.stdin.readline()\n"
+                    )
+                else:
+                    script = f"import sys\nprint({prompt!r}, flush=True)\n"
+                fake_tool.write_text(script, encoding="utf-8")
+                with self.assertRaisesRegex(SigningError, message):
+                    run_interactive_signer([sys.executable, str(fake_tool)], CANARY, timeout_seconds=5)
+
     def test_password_is_sent_only_after_echo_off_and_not_returned_or_logged(self):
         with tempfile.TemporaryDirectory() as temporary:
             fake_tool = Path(temporary) / "fake_signer.py"

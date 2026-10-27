@@ -383,9 +383,7 @@ class CampusFinanceCaptchaUiTest {
   }
 
   private fun waitForInternetBalances() {
-    compose.waitUntil(5_000) {
-      compose.onAllNodes(hasScrollToIndexAction()).fetchSemanticsNodes().size == 1
-    }
+    compose.waitUntil(5_000) { compose.onAllNodesWithText("网费与流量").fetchSemanticsNodes().size == 1 }
     // The loaded fixture has no reminders: item 3 is the balance card.
     // Scroll once, then let its layout settle instead of restarting a text search.
     compose.onNode(hasScrollToIndexAction()).performScrollToIndex(3)

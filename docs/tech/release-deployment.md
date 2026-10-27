@@ -44,4 +44,4 @@ python3 script/local_platform_gate.py \
 
 格式检查与共享、界面测试由 `python3 script/run_local_tests.py <新证据目录>` 串行执行（参数以 `--help` 为准）。检查只读，不自动改源码；GitHub 不安装 JDK/SDK 运行格式或平台构建。使用生成的证据文件运行本机平台 gate，不手填成功状态。
 
-Android 当前升级密钥为本机 `~/.android/BUCC-release.jks`、别名 `release`。批准证书 SHA-256 为 `bd290fb244f4e778acfca9f6c4f0027a49bdacb69c473c0af9b6e9c5695d4b86`；其他同名发布材料也必须匹配此证书。密码仅从本机钥匙串 `BUCC Android Existing Release` 和可选的 `BUCC Android Existing Key` 读取。缺失或不匹配时停止该端签名，不能换钥匙。
+Android 2.0.1 经用户于 2026-10-27 明确授权，改用本机已有 `~/Library/Application Support/BUCC/Signing/BUCC-android-release.jks`，别名 `bucc-release`，证书 SHA-256 为 `d2a24530ad320f752bfab2b9235bc68e185003ea2d9908f404c106754c8db176`。密码仅从现有钥匙串服务 `app.bucc.android.release` 读取，不生成替代密钥。此证书与旧版 BD29 发布证书不同，旧版用户必须卸载后重新安装，可能丢失本地数据；不得声称支持覆盖升级。原密钥保留，不覆盖。材料缺失或证书不匹配时停止签名。

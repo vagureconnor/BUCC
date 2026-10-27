@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build with the existing upgrade-compatible Android release key, without logging secrets."""
+"""Build with the user-approved existing BUCC Android release key, without logging secrets."""
 from __future__ import annotations
 import argparse
 import hashlib
@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import sys
 
-EXPECTED_CERT = 'bd290fb244f4e778acfca9f6c4f0027a49bdacb69c473c0af9b6e9c5695d4b86'
+EXPECTED_CERT = 'd2a24530ad320f752bfab2b9235bc68e185003ea2d9908f404c106754c8db176'
 
 
 def command(args, *, env=None):
@@ -44,11 +44,11 @@ def main():
     command([sys.executable, '.github/scripts/version_sync.py', '--check'])
     if args.output.exists():
         raise RuntimeError('Refusing to overwrite output directory')
-    key = Path.home() / '.android/BUCC-release.jks'
+    key = Path.home() / 'Library/Application Support/BUCC/Signing/BUCC-android-release.jks'
     if not key.is_file():
-        raise RuntimeError('Existing upgrade-compatible release keystore is missing')
-    store_password = keychain('BUCC Android Existing Release')
-    key_password = keychain('BUCC Android Existing Key', required=False) or store_password
+        raise RuntimeError('User-approved existing BUCC release keystore is missing')
+    store_password = keychain('app.bucc.android.release')
+    key_password = store_password
     env = os.environ.copy()
     java_home = Path(env.get('JAVA_HOME', ''))
     keytool = java_home / 'bin/keytool'
@@ -56,13 +56,13 @@ def main():
         raise RuntimeError('JAVA_HOME must point to the local JDK 21')
     env['BUCC_ANDROID_STORE_PASSWORD'] = store_password
     certificate = command([str(keytool), '-J-Duser.language=en', '-list', '-v', '-keystore', str(key),
-                           '-alias', 'release', '-storepass:env', 'BUCC_ANDROID_STORE_PASSWORD'], env=env)
+                           '-alias', 'bucc-release', '-storepass:env', 'BUCC_ANDROID_STORE_PASSWORD'], env=env)
     match = re.search(r'SHA256:\s*([A-Fa-f0-9:]+)', certificate)
     if not match or match.group(1).replace(':', '').lower() != EXPECTED_CERT:
-        raise RuntimeError('Existing keystore certificate differs from the previous official APK')
+        raise RuntimeError('Existing keystore certificate differs from the user-approved BUCC identity')
     env.pop('BUCC_ANDROID_STORE_PASSWORD')
     env.update(SIGNING_KEY=str(key), SIGNING_STORE_PASSWORD=store_password,
-               SIGNING_KEY_ALIAS='release', SIGNING_KEY_PASSWORD=key_password)
+               SIGNING_KEY_ALIAS='bucc-release', SIGNING_KEY_PASSWORD=key_password)
     args.output.mkdir(parents=True)
     result = subprocess.run([str(ROOT / 'gradlew'), ':androidApp:assembleRelease', '--no-configuration-cache',
                              '--no-daemon', '--max-workers=2', '--console=plain'], cwd=ROOT, env=env,

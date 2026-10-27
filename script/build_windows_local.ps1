@@ -147,7 +147,7 @@ try {
     Push-Location $root
     try {
         $ErrorActionPreference = 'Continue'
-        & $gradle ':composeApp:packageReleaseExe' '--no-configuration-cache' '--console=plain' '--max-workers=2' 2>&1 | Tee-Object -FilePath $buildLog
+        & $gradle ':composeApp:packageReleaseExe' '--no-configuration-cache' '--no-daemon' '--console=plain' '--max-workers=2' 2>&1 | Tee-Object -FilePath $buildLog
         $gradleExit = $LASTEXITCODE
     }
     finally { $ErrorActionPreference = 'Stop'; Pop-Location }
@@ -201,6 +201,10 @@ try {
     Write-Output "Windows Release EXE built and inspected: $destinationExe"
 }
 finally {
-    if (Test-Path -LiteralPath $sourceDirectory) { Remove-Item -LiteralPath $sourceDirectory -Recurse -Force }
+    if (Test-Path -LiteralPath $sourceDirectory) {
+        # PowerShell 5 Remove-Item cannot reliably traverse generated paths over MAX_PATH.
+        & $PythonExe -c 'import shutil,sys; shutil.rmtree(sys.argv[1])' ('\\?\' + $sourceDirectory)
+        if ($LASTEXITCODE -ne 0) { throw 'Windows build workspace cleanup failed.' }
+    }
     foreach ($name in $oldEnvironment.Keys) { [Environment]::SetEnvironmentVariable($name, $oldEnvironment[$name], 'Process') }
 }

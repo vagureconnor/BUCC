@@ -25,6 +25,8 @@ class WindowsBuildContractTests(unittest.TestCase):
                         "$env:GOARCH = 'amd64'", "$env:WIX = $WixHome", "SetEnvironmentVariable($name, $oldEnvironment[$name], 'Process')"):
             self.assertNotIn('$sourceDirectory = Join-Path $env:TEMP', self.script)
         self.assertIn("Join-Path $ToolsDirectory 'workspaces'", self.script)
+        self.assertIn("'--no-daemon'", self.script)
+        self.assertIn('shutil.rmtree(sys.argv[1])', self.script)
         self.assertIn(setting, self.script)
         self.assertIn('working x64 JDK', self.script)
         self.assertIn("'3.14|win-amd64|64'", self.script)

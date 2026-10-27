@@ -188,6 +188,8 @@ def payload_hashes(hap: Path) -> dict[str, str]:
 def verify_payload_unchanged(unsigned_hap: Path, signed_hap: Path) -> None:
     unsigned_payload = payload_hashes(unsigned_hap)
     signed_payload = payload_hashes(signed_hap)
+    if ".pages.info" not in unsigned_payload:
+        signed_payload.pop(".pages.info", None)
     if unsigned_payload != signed_payload:
         raise SigningError("signed HAP payload differs from the unsigned source")
 

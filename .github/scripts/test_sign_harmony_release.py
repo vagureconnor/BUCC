@@ -139,6 +139,53 @@ class SigningInputTests(unittest.TestCase):
             verify_payload_unchanged(self.hap, changed)
         self.assertNotRegex("META-INF/resources.dat", SIGNATURE_ENTRY_RE)
 
+    def test_allows_only_new_root_pages_info_generated_by_official_signer(self):
+        signed = self.root / "signed-pages-info.hap"
+        write_hap(
+            signed,
+            {
+                "module.json": b"module",
+                "ets/pages/Index.abc": b"bytecode",
+                ".pages.info": b"generated page metadata",
+                "META-INF/CERT.SF": b"signature",
+            },
+        )
+        verify_payload_unchanged(self.hap, signed)
+
+    def test_existing_pages_info_must_remain_byte_identical(self):
+        write_hap(self.hap, {"module.json": b"module", ".pages.info": b"source metadata"})
+        write_metadata(self.metadata, self.hap)
+        signed = self.root / "signed-pages-info-changed.hap"
+        write_hap(signed, {"module.json": b"module", ".pages.info": b"modified metadata"})
+        with self.assertRaisesRegex(SigningError, "payload differs"):
+            verify_payload_unchanged(self.hap, signed)
+
+    def test_rejects_other_new_paths_and_module_or_library_changes(self):
+        source = {"module.json": b"module", "libs/arm64-v8a/libapp.so": b"library"}
+        for name, added in (
+            ("extra", {"extra.bin": b"extra"}),
+            ("nested-pages-info", {"sub/.pages.info": b"metadata"}),
+            ("pages-info-prefix", {".pages.info/child": b"metadata"}),
+        ):
+            with self.subTest(name=name):
+                unsigned = self.root / f"unsigned-{name}.hap"
+                signed = self.root / f"signed-{name}.hap"
+                write_hap(unsigned, source)
+                write_hap(signed, source | added)
+                with self.assertRaisesRegex(SigningError, "payload differs"):
+                    verify_payload_unchanged(unsigned, signed)
+        for path, modified in (
+            ("module.json", b"changed module"),
+            ("libs/arm64-v8a/libapp.so", b"changed library"),
+        ):
+            with self.subTest(path=path):
+                unsigned = self.root / f"unsigned-change-{Path(path).name}.hap"
+                signed = self.root / f"signed-change-{Path(path).name}.hap"
+                write_hap(unsigned, source)
+                write_hap(signed, source | {path: modified})
+                with self.assertRaisesRegex(SigningError, "payload differs"):
+                    verify_payload_unchanged(unsigned, signed)
+
     def test_signing_argv_contains_no_password_and_uses_requested_profile(self):
         command = build_sign_command(
             "/path/to/java",

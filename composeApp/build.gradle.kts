@@ -400,18 +400,14 @@ val campusProxyGoos =
       System.getProperty("os.name").startsWith("Windows", ignoreCase = true) -> "windows"
       System.getProperty("os.name").startsWith("Linux", ignoreCase = true) -> "linux"
       else ->
-          throw GradleException(
-              "Unsupported campus proxy host: ${System.getProperty("os.name")}"
-          )
+          throw GradleException("Unsupported campus proxy host: ${System.getProperty("os.name")}")
     }
 val campusProxyGoarch =
     when (tdPackagingArch.get()) {
       "x86_64" -> "amd64"
       "arm64" -> "arm64"
       else ->
-          throw GradleException(
-              "Unsupported campus proxy architecture: ${tdPackagingArch.get()}"
-          )
+          throw GradleException("Unsupported campus proxy architecture: ${tdPackagingArch.get()}")
     }
 val campusProxyName =
     if (campusProxyGoos == "windows") "bucc-campus-proxy.exe" else "bucc-campus-proxy"

@@ -20,7 +20,7 @@ def macho(cpu_type: int, platform: int = 2, code_signature_size: int = 0) -> byt
     return header + struct.pack("<IIIIII", 0x32, 24, platform, 0xD0000, 0xD0000, 0)
 
 
-def app_contents(root: Path, cpu_type: int) -> Path:
+def app_contents(root: Path, cpu_type: int, native_arches: dict[str, int] | None = None) -> Path:
     app = root / "BUCC.app"
     (app / "Contents" / "MacOS").mkdir(parents=True)
     info = {
@@ -30,6 +30,18 @@ def app_contents(root: Path, cpu_type: int) -> Path:
     }
     (app / "Contents" / "Info.plist").write_bytes(plistlib.dumps(info))
     (app / "Contents" / "MacOS" / "BUCC").write_bytes(macho(cpu_type))
+    native_arches = native_arches or {}
+    resource_root = app / "Contents/app/resources"
+    components = {
+        "campus proxy": resource_root / "campus-proxy/bucc-campus-proxy",
+        "attendance backend": resource_root / "td-backend/AutoTDBackend",
+        "BUCC native library": resource_root / "native/libbucc-native.dylib",
+        "bundled JVM": app / "Contents/runtime/Contents/Home/lib/server/libjvm.dylib",
+        "bundled JVM launcher": app / "Contents/runtime/Contents/Home/lib/libjli.dylib",
+    }
+    for name, binary_path in components.items():
+        binary_path.parent.mkdir(parents=True, exist_ok=True)
+        binary_path.write_bytes(macho(native_arches.get(name, cpu_type)))
     return app
 
 
@@ -151,6 +163,52 @@ class PackageValidationTests(unittest.TestCase):
             with patch("package_validation.subprocess.run", side_effect=fake_run):
                 with self.assertRaisesRegex(PackageError, "arm64"):
                     validate_macos_dmg(dmg, "2.0.1", 201, "arm64")
+
+    def test_macos_rejects_arm64_bucc_components_in_x86_64_dmg(self):
+        for component in ("campus proxy", "attendance backend", "BUCC native library", "bundled JVM", "bundled JVM launcher"):
+            with self.subTest(component=component), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                dmg = root / "app.dmg"
+                dmg.write_bytes(b"fixture")
+
+                def fake_run(argv, **kwargs):
+                    if argv[0] == "hdiutil" and argv[1] == "attach":
+                        mount = Path(argv[argv.index("-mountpoint") + 1])
+                        app_contents(mount, 0x01000007, {component: 0x0100000C})
+                        return SimpleNamespace(returncode=0, stdout=plistlib.dumps({"system-entities": [{"mount-point": str(mount)}]}), stderr="")
+                    if argv[0] == "codesign" and argv[1] == "-dv":
+                        return SimpleNamespace(returncode=0, stdout="", stderr="Signature=adhoc\n")
+                    return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+                with patch("package_validation.subprocess.run", side_effect=fake_run):
+                    with self.assertRaisesRegex(PackageError, component):
+                        validate_macos_dmg(dmg, "2.0.1", 201, "x86_64")
+
+    def test_macos_rejects_each_missing_bucc_native_component(self):
+        relative_paths = {
+            "campus proxy": "Contents/app/resources/campus-proxy/bucc-campus-proxy",
+            "attendance backend": "Contents/app/resources/td-backend/AutoTDBackend",
+            "BUCC native library": "Contents/app/resources/native/libbucc-native.dylib",
+            "bundled JVM": "Contents/runtime/Contents/Home/lib/server/libjvm.dylib",
+            "bundled JVM launcher": "Contents/runtime/Contents/Home/lib/libjli.dylib",
+        }
+        for component, relative_path in relative_paths.items():
+            with self.subTest(component=component), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                dmg = root / "app.dmg"
+                dmg.write_bytes(b"fixture")
+
+                def fake_run(argv, **kwargs):
+                    if argv[0] == "hdiutil" and argv[1] == "attach":
+                        mount = Path(argv[argv.index("-mountpoint") + 1])
+                        app = app_contents(mount, 0x01000007)
+                        (app / relative_path).unlink()
+                        return SimpleNamespace(returncode=0, stdout=plistlib.dumps({"system-entities": [{"mount-point": str(mount)}]}), stderr="")
+                    return SimpleNamespace(returncode=0, stdout="", stderr="Signature=adhoc\n")
+
+                with patch("package_validation.subprocess.run", side_effect=fake_run):
+                    with self.assertRaisesRegex(PackageError, component):
+                        validate_macos_dmg(dmg, "2.0.1", 201, "x86_64")
 
     def test_macos_rejects_non_adhoc_signature_and_wrong_version(self):
         with tempfile.TemporaryDirectory() as temporary:

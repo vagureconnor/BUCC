@@ -129,6 +129,7 @@ class AppleBuilderTests(unittest.TestCase):
         self.assertIn('Target JDK architecture mismatch', script)
         self.assertIn('Target Python architecture mismatch', script)
         self.assertIn('hdiutil verify', script)
+        self.assertIn('validate_macos_dmg', script)
         self.assertIn('codesign --verify --deep --strict "$packaged_app"', script)
 
 

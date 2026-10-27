@@ -109,6 +109,13 @@ elif [[ "$platform" == macos-arm64 || "$platform" == macos-x86_64 ]]; then
   [[ "$dmg_signature" == *"Signature=adhoc"* ]] || { echo 'DMG app is not ad-hoc signed.' >&2; exit 2; }
   cleanup_mount; mounted=0; trap - EXIT
   cp "$build_output" "$artifact"
+  python3 - "$repo_root/.github/scripts" "$artifact" "$version" "$version_code" "$target_arch" <<'VALIDATE'
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from package_validation import validate_macos_dmg
+validate_macos_dmg(Path(sys.argv[2]), sys.argv[3], int(sys.argv[4]), sys.argv[5])
+VALIDATE
   arch="$target_arch"; signing=ad-hoc
 else
   echo 'Expected ios, macos-arm64, or macos-x86_64.' >&2; exit 2

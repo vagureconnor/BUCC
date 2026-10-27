@@ -183,6 +183,26 @@ def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
     return result
 
 
+def _validate_macos_native_components(app: Path, architecture: str) -> None:
+    resource_root = app / "Contents/app/resources"
+    components = (
+        ("campus proxy", resource_root / "campus-proxy/bucc-campus-proxy"),
+        ("attendance backend", resource_root / "td-backend/AutoTDBackend"),
+        ("BUCC native library", resource_root / "native/libbucc-native.dylib"),
+        ("bundled JVM", app / "Contents/runtime/Contents/Home/lib/server/libjvm.dylib"),
+        ("bundled JVM launcher", app / "Contents/runtime/Contents/Home/lib/libjli.dylib"),
+    )
+    for label, binary in components:
+        try:
+            contents = binary.read_bytes()
+        except OSError:
+            raise PackageError(f"macOS DMG 缺少 {label} 本机组件") from None
+        try:
+            _check_macho(contents, architecture)
+        except PackageError:
+            raise PackageError(f"macOS DMG 的 {label} 不包含要求的 {architecture} Mach-O 架构") from None
+
+
 def validate_macos_dmg(path: Path, version: str, version_code: int, architecture: str) -> None:
     if architecture not in CPU_TYPES:
         raise PackageError("macOS DMG 架构配置无效")
@@ -209,6 +229,7 @@ def validate_macos_dmg(path: Path, version: str, version_code: int, architecture
             app = apps[0]
             executable = _parse_info((app / "Contents/Info.plist").read_bytes(), version, version_code)
             _check_macho((app / "Contents/MacOS" / executable).read_bytes(), architecture)
+            _validate_macos_native_components(app, architecture)
             _run(["codesign", "--verify", "--deep", "--strict", str(app)])
             detail = subprocess.run(
                 ["codesign", "-dv", "--verbose=4", str(app)],

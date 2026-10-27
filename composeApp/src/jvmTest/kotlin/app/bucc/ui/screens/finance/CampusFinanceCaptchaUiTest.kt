@@ -9,14 +9,12 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasScrollToIndexAction
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
-import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import app.bucc.api.finance.CampusNetworkTraffic
 import app.bucc.api.finance.CampusRechargeBackend
@@ -384,18 +382,16 @@ class CampusFinanceCaptchaUiTest {
     assertEquals(0, recharge.createCalls)
   }
 
-  private fun waitAndScrollTo(text: String) {
+  private fun waitForInternetBalances() {
     compose.waitUntil(5_000) {
-      runCatching {
-            compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(text))
-            compose.onAllNodesWithText(text).fetchSemanticsNodes().size == 1
-          }
-          .getOrDefault(false)
+      compose.onAllNodes(hasScrollToIndexAction()).fetchSemanticsNodes().size == 1
     }
+    // The loaded fixture has no reminders: item 3 is the balance card.
+    // Scroll once, then let its layout settle instead of restarting a text search.
+    compose.onNode(hasScrollToIndexAction()).performScrollToIndex(3)
     compose.waitForIdle()
+    compose.onNodeWithText("网费余额").assertIsDisplayed()
   }
-
-  private fun waitForInternetBalances() = waitAndScrollTo("网费余额")
 
   private fun waitForInternetForm() {
     waitForInternetBalances()

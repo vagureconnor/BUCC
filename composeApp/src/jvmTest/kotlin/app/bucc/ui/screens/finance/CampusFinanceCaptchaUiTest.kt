@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import app.bucc.api.finance.CampusNetworkTraffic
@@ -396,7 +397,16 @@ class CampusFinanceCaptchaUiTest {
 
   private fun waitForInternetBalances() = waitAndScrollTo("网费余额")
 
-  private fun waitForInternetForm() = waitAndScrollTo("充值金额（元）")
+  private fun waitForInternetForm() {
+    waitForInternetBalances()
+    // The fixture has no reminders: item 4 is the recharge card. Keep its loading
+    // composition alive; repeating a text search scrolls back and restarts prepare.
+    compose.onNode(hasScrollToIndexAction()).performScrollToIndex(4)
+    compose.waitUntil(5_000) {
+      compose.onAllNodesWithText("充值金额（元）").fetchSemanticsNodes().size == 1
+    }
+    compose.waitForIdle()
+  }
 
   private fun setScreen(
       session: FakeSession,

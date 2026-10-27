@@ -43,6 +43,47 @@ class PublicCertificateTests(unittest.TestCase):
             ):
                 self.assertEqual(LEAF_SHA, leaf_sha256(certificate))
 
+    def test_accepts_untrusted_subject_dn_labels_before_root_first_or_leaf_first_pem_blocks(self):
+        chains = (
+            'CN=Fixture\\, Root, OU=测试单元, O=BUCC Fixture, C=CN\n'.encode() + pem("ROOT")
+            + b'CN="Fixture, Signing Leaf", OU=Unit Tests, O=BUCC Fixture, C=CN\n' + pem("LEAF"),
+            b'subject=CN="Fixture, Signing Leaf", OU=Unit Tests, O=BUCC Fixture, C=CN\n' + pem("LEAF")
+            + b'CN=Fixture Root, OU=Unit Tests, O=BUCC Fixture, C=CN\n' + pem("ROOT"),
+        )
+        for chain in chains:
+            with self.subTest(chain=chain[:32]), tempfile.TemporaryDirectory() as temporary:
+                certificate = Path(temporary) / "verify-app-output.cer"
+                certificate.write_bytes(chain)
+                fake_run = self.run_openssl_for_markers(
+                    {"ROOT": True, "LEAF": False},
+                    {"ROOT": ROOT_SHA, "LEAF": LEAF_SHA},
+                )
+                with patch("public_certificate.shutil.which", return_value="openssl"), patch(
+                    "public_certificate.subprocess.run", side_effect=fake_run
+                ):
+                    self.assertEqual(LEAF_SHA, leaf_sha256(certificate))
+
+    def test_rejects_arbitrary_text_malformed_dn_and_private_key_pem(self):
+        invalid_gaps = (
+            b"This is arbitrary extra text\n",
+            b"CN=Fixture One\nCN=Fixture Two\n",
+            b"-----BEGIN PRIVATE KEY-----\nnot-a-key\n-----END PRIVATE KEY-----\n",
+        )
+        for gap in invalid_gaps:
+            with self.subTest(gap=gap), tempfile.TemporaryDirectory() as temporary:
+                certificate = Path(temporary) / "bad.cer"
+                certificate.write_bytes(gap + pem("LEAF"))
+                with patch("public_certificate.shutil.which", return_value="openssl"):
+                    with self.assertRaisesRegex(CertificateError, "extra data"):
+                        leaf_sha256(certificate)
+        malformed_dn = b"CN=unterminated\\\n" + pem("LEAF")
+        with tempfile.TemporaryDirectory() as temporary:
+            certificate = Path(temporary) / "bad-dn.cer"
+            certificate.write_bytes(malformed_dn)
+            with patch("public_certificate.shutil.which", return_value="openssl"):
+                with self.assertRaises(CertificateError):
+                    leaf_sha256(certificate)
+
     def test_der_single_leaf_is_supported(self):
         with tempfile.TemporaryDirectory() as temporary:
             certificate = Path(temporary) / "single.cer"

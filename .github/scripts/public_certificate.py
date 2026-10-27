@@ -16,6 +16,23 @@ EXPECTED_HARMONY_LEAF_SHA256 = "7d8fabaaff15ea84e5343d94b352ee97452e4314bfb90bbd
 PEM_CERTIFICATE = re.compile(rb"-----BEGIN CERTIFICATE-----\s+.*?-----END CERTIFICATE-----", re.DOTALL)
 FINGERPRINT = re.compile(r"(?:sha256\s+)?Fingerprint=([0-9a-fA-F:]+)", re.IGNORECASE)
 CA_TRUE = re.compile(r"\bCA\s*:\s*TRUE\b", re.IGNORECASE)
+DN_ATTRIBUTE = r"(?:CN|OU|O|C|L|ST|S|STREET|DC|UID|E|EMAILADDRESS|SERIALNUMBER|GIVENNAME|SURNAME|SN|TITLE|POSTALCODE|BUSINESSCATEGORY|DNQUALIFIER|PSEUDONYM|INITIALS|GENERATIONQUALIFIER|NAME|ORGANIZATIONIDENTIFIER|[0-9]+(?:\.[0-9]+)+)"
+DN_VALUE = r'(?:"(?:\\.|[^"\\])*"|(?:\\.|[^,])+?)'
+DN_LABEL = re.compile(
+    rf"(?:subject\s*=\s*)?{DN_ATTRIBUTE}\s*=\s*{DN_VALUE}"
+    rf"(?:\s*,\s*{DN_ATTRIBUTE}\s*=\s*{DN_VALUE})*",
+    re.IGNORECASE,
+)
+
+
+def _allowed_pem_gap(gap: bytes) -> bool:
+    if not gap.strip():
+        return True
+    try:
+        lines = [line.strip() for line in gap.decode("utf-8").splitlines() if line.strip()]
+    except UnicodeDecodeError:
+        return False
+    return len(lines) == 1 and DN_LABEL.fullmatch(lines[0]) is not None
 
 
 def _certificate_blobs(path: Path) -> tuple[list[bytes], bool]:
@@ -25,8 +42,12 @@ def _certificate_blobs(path: Path) -> tuple[list[bytes], bool]:
         raise CertificateError("certificate file is unavailable") from None
     blocks = list(PEM_CERTIFICATE.finditer(contents))
     if blocks:
-        remainder = PEM_CERTIFICATE.sub(b"", contents)
-        if b"-----BEGIN CERTIFICATE-----" in remainder or b"-----END CERTIFICATE-----" in remainder or remainder.strip():
+        previous_end = 0
+        for block in blocks:
+            if not _allowed_pem_gap(contents[previous_end:block.start()]):
+                raise CertificateError("certificate PEM chain has malformed or extra data")
+            previous_end = block.end()
+        if contents[previous_end:].strip():
             raise CertificateError("certificate PEM chain has malformed or extra data")
         return [match.group(0) + b"\n" for match in blocks], True
     if b"-----BEGIN CERTIFICATE-----" in contents or b"-----END CERTIFICATE-----" in contents:

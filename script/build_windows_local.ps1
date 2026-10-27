@@ -202,8 +202,8 @@ try {
 }
 finally {
     if (Test-Path -LiteralPath $sourceDirectory) {
-        # PowerShell 5 Remove-Item cannot reliably traverse generated paths over MAX_PATH.
-        & $PythonExe -c 'import shutil,sys; shutil.rmtree(sys.argv[1])' ('\\?\' + $sourceDirectory)
+        # Handle long paths and read-only launchers produced by jpackage.
+        & $PythonExe -c 'import os,shutil,stat,sys; shutil.rmtree(sys.argv[1],onexc=lambda operation,path,error:(os.chmod(path,stat.S_IWRITE),operation(path)))' ('\\?\' + $sourceDirectory)
         if ($LASTEXITCODE -ne 0) { throw 'Windows build workspace cleanup failed.' }
     }
     foreach ($name in $oldEnvironment.Keys) { [Environment]::SetEnvironmentVariable($name, $oldEnvironment[$name], 'Process') }
